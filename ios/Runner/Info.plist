@@ -66,5 +66,11 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Aplikasi TVA membutuhkan akses kamera untuk mengambil foto laporan toko.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Aplikasi TVA membutuhkan akses galeri untuk memilih foto laporan toko.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Aplikasi TVA membutuhkan akses mikrofon untuk merekam video (jika diperlukan).</string>
 </dict>
 </plist>

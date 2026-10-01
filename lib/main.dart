@@ -195,7 +195,10 @@ Future<void> generateAndPrintPdf(List<Map<String, dynamic>> dataList) async {
     ),
   );
 
-  final title = dataList.length == 1 ? 'Laporan_Vape_${dataList.first['storeName'] ?? 'Toko'}' : 'Laporan_Vape_Multi';
+  final now = DateTime.now();
+  final dateStr = '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
+  final title = 'LAPORAN_${dateStr}_Moh_Tegar_Huda_putra';
+  
   await Printing.layoutPdf(
     name: '$title.pdf',
     onLayout: (PdfPageFormat format) async => pdf.save(),

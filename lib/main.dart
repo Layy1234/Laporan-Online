@@ -34,9 +34,9 @@ Future<void> generateAndPrintPdf(Map<String, dynamic> data) async {
               child: pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
-                  pw.Text('Laporan Visit Toko Vape', style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+                pw.Text('Laporan Visit Toko Vape', style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold, color: PdfColors.orange900)),
                   pw.Text(
-                    '${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}',
+                    '${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year} - ${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}',
                     style: const pw.TextStyle(fontSize: 14, color: PdfColors.grey700),
                   ),
                 ],
@@ -105,14 +105,14 @@ Future<void> generateAndPrintPdf(Map<String, dynamic> data) async {
             pw.Container(
               padding: const pw.EdgeInsets.all(12),
               decoration: pw.BoxDecoration(
-                color: PdfColors.blue50,
+                color: PdfColors.orange50,
                 borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
               ),
               child: pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
                   pw.Text('Data Produk / Inventory', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
-                  pw.Divider(color: PdfColors.blue200),
+                  pw.Divider(color: PdfColors.orange200),
                   pw.SizedBox(height: 4),
                   pw.Row(
                     mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
@@ -176,25 +176,25 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false, // Menghilangkan banner debug
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF1E3A8A), // Biru gelap profesional
-          primary: const Color(0xFF1E3A8A),
-          secondary: const Color(0xFF3B82F6),
+          seedColor: Colors.deepOrange,
+          primary: Colors.deepOrange,
+          secondary: Colors.orange,
         ),
         useMaterial3: true,
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: Colors.grey.shade50,
+          fillColor: Colors.orange.shade50,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.grey.shade300),
+            borderSide: BorderSide(color: Colors.orange.shade200),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.grey.shade300),
+            borderSide: BorderSide(color: Colors.orange.shade200),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFF1E3A8A), width: 2),
+            borderSide: const BorderSide(color: Colors.deepOrange, width: 2),
           ),
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         ),
@@ -345,7 +345,7 @@ class _DataFormPageState extends State<DataFormPage> {
         elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.history_edu, color: Color(0xFF1E3A8A)),
+            icon: const Icon(Icons.history_edu, color: Colors.deepOrange),
             tooltip: 'Riwayat Laporan',
             onPressed: () {
               Navigator.push(
@@ -667,12 +667,50 @@ class _HistoryPageState extends State<HistoryPage> {
                                 TextButton.icon(
                                   icon: const Icon(Icons.delete_outline, color: Colors.red),
                                   label: const Text('Hapus', style: TextStyle(color: Colors.red)),
-                                  onPressed: () => _deleteStore(store['id']),
+                                  onPressed: () {
+                                    showDialog(
+                                      context: context,
+                                      builder: (BuildContext ctx) {
+                                        return AlertDialog(
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                          title: Row(
+                                            children: const [
+                                              Icon(Icons.warning_amber_rounded, color: Colors.deepOrange, size: 28),
+                                              SizedBox(width: 8),
+                                              Text('Konfirmasi Hapus'),
+                                            ],
+                                          ),
+                                          content: Text(
+                                            'Apakah Anda yakin ingin menghapus data laporan toko "${store['storeName']}" secara permanen?',
+                                            style: const TextStyle(fontSize: 16),
+                                          ),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () => Navigator.of(ctx).pop(),
+                                              child: const Text('Batal', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+                                            ),
+                                            ElevatedButton(
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: Colors.red.shade600,
+                                                foregroundColor: Colors.white,
+                                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                              ),
+                                              onPressed: () {
+                                                Navigator.of(ctx).pop();
+                                                _deleteStore(store['id']);
+                                              },
+                                              child: const Text('Ya, Hapus', style: TextStyle(fontWeight: FontWeight.bold)),
+                                            ),
+                                          ],
+                                        );
+                                      },
+                                    );
+                                  },
                                 ),
                                 const SizedBox(width: 8),
                                 ElevatedButton.icon(
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF1E3A8A),
+                                    backgroundColor: Colors.deepOrange,
                                     foregroundColor: Colors.white,
                                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

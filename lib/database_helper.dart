@@ -17,10 +17,9 @@ class DatabaseHelper {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
 
-    // Ditingkatkan ke versi 2 untuk menambahkan kolom 'inside'
     return await openDatabase(
       path, 
-      version: 2, 
+      version: 3, 
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -39,7 +38,8 @@ CREATE TABLE stores (
   tribe TEXT,
   ct TEXT,
   inside TEXT,
-  imagePath TEXT
+  imagePath TEXT,
+  imagePaths TEXT
 )
 ''');
   }
@@ -47,6 +47,9 @@ CREATE TABLE stores (
   Future _upgradeDB(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
       await db.execute('ALTER TABLE stores ADD COLUMN inside TEXT');
+    }
+    if (oldVersion < 3) {
+      await db.execute('ALTER TABLE stores ADD COLUMN imagePaths TEXT');
     }
   }
 

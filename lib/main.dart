@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:pdf/pdf.dart';
@@ -11,30 +12,41 @@ void main() {
   runApp(const MyApp());
 }
 
-Future<void> generateAndPrintPdf(Map<String, dynamic> data) async {
+Future<void> generateAndPrintPdf(List<Map<String, dynamic>> dataList) async {
   final pdf = pw.Document();
-  
-  pw.MemoryImage? pdfImage;
-  if (data['imagePath'] != null && data['imagePath'].isNotEmpty) {
-    final imageFile = File(data['imagePath']);
-    if (imageFile.existsSync()) {
-      pdfImage = pw.MemoryImage(imageFile.readAsBytesSync());
-    }
-  }
 
   pdf.addPage(
-    pw.Page(
+    pw.MultiPage(
       pageFormat: PdfPageFormat.a4,
       build: (pw.Context context) {
-        return pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          children: [
+        List<pw.Widget> elements = [];
+
+        for (int i = 0; i < dataList.length; i++) {
+          final data = dataList[i];
+          
+          List<pw.MemoryImage> pdfImages = [];
+          List<String> imagePaths = [];
+          if (data['imagePaths'] != null && data['imagePaths'].toString().isNotEmpty) {
+            imagePaths = List<String>.from(jsonDecode(data['imagePaths']));
+          } else if (data['imagePath'] != null && data['imagePath'].toString().isNotEmpty) {
+            imagePaths = [data['imagePath']];
+          }
+
+          for (String path in imagePaths) {
+            final imageFile = File(path);
+            if (imageFile.existsSync()) {
+              pdfImages.add(pw.MemoryImage(imageFile.readAsBytesSync()));
+            }
+          }
+
+          // HEADER
+          elements.add(
             pw.Header(
               level: 0,
               child: pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
-                pw.Text('Laporan Visit Toko Vape', style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold, color: PdfColors.orange900)),
+                  pw.Text('Laporan Visit Toko Vape', style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold, color: PdfColors.orange900)),
                   pw.Text(
                     '${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year} - ${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}',
                     style: const pw.TextStyle(fontSize: 14, color: PdfColors.grey700),
@@ -42,29 +54,17 @@ Future<void> generateAndPrintPdf(Map<String, dynamic> data) async {
                 ],
               ),
             ),
-            pw.SizedBox(height: 16),
-            
-            // FOTO DI ATAS
-            if (pdfImage != null) ...[
-              pw.Text('Lampiran Foto', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
-              pw.SizedBox(height: 8),
-              pw.Container(
-                height: 250, // Dibatasi tinggi maksimal agar tidak memakan seluruh kertas
-                width: double.infinity,
-                decoration: pw.BoxDecoration(
-                  border: pw.Border.all(color: PdfColors.grey400, width: 2),
-                  borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
-                ),
-                child: pw.ClipRRect(
-                  horizontalRadius: 6,
-                  verticalRadius: 6,
-                  child: pw.Image(pdfImage, fit: pw.BoxFit.cover),
-                ),
-              ),
-              pw.SizedBox(height: 16),
-            ],
+          );
+          
+          // NAMA DI BAWAH GARIS HEADER
+          elements.add(pw.Container(
+            alignment: pw.Alignment.centerLeft,
+            margin: const pw.EdgeInsets.only(bottom: 16),
+            child: pw.Text('Dilaporkan oleh: Moh Tegar Huda Putra', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.black)),
+          ));
 
-            // DATA TOKO
+          // DATA TOKO
+          elements.add(
             pw.Container(
               padding: const pw.EdgeInsets.all(12),
               decoration: pw.BoxDecoration(
@@ -98,10 +98,12 @@ Future<void> generateAndPrintPdf(Map<String, dynamic> data) async {
                   ]),
                 ],
               ),
-            ),
-            pw.SizedBox(height: 12),
+            )
+          );
+          elements.add(pw.SizedBox(height: 12));
 
-            // DATA INVENTORY
+          // DATA INVENTORY
+          elements.add(
             pw.Container(
               padding: const pw.EdgeInsets.all(12),
               decoration: pw.BoxDecoration(
@@ -131,37 +133,71 @@ Future<void> generateAndPrintPdf(Map<String, dynamic> data) async {
                   )
                 ],
               ),
-            ),
-            pw.SizedBox(height: 12),
+            )
+          );
+          elements.add(pw.SizedBox(height: 12));
 
-            // RINGKASAN
-            pw.Expanded(
-              child: pw.Container(
-                padding: const pw.EdgeInsets.all(12),
-                width: double.infinity,
-                decoration: pw.BoxDecoration(
-                  border: pw.Border.all(color: PdfColors.grey300),
-                  borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
-                ),
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Text('INSIDE :', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
-                    pw.Divider(color: PdfColors.grey300),
-                    pw.SizedBox(height: 4),
-                    pw.Text('${data['inside'] ?? '-'}', style: const pw.TextStyle(fontSize: 12, lineSpacing: 2)),
-                  ],
-                ),
+          // RINGKASAN
+          elements.add(
+            pw.Container(
+              padding: const pw.EdgeInsets.all(12),
+              width: double.infinity,
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(color: PdfColors.grey300),
+                borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
               ),
-            ),
-          ],
-        );
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text('INSIDE :', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+                  pw.Divider(color: PdfColors.grey300),
+                  pw.SizedBox(height: 4),
+                  pw.Text('${data['inside'] ?? '-'}', style: const pw.TextStyle(fontSize: 12, lineSpacing: 2)),
+                ],
+              ),
+            )
+          );
+          elements.add(pw.SizedBox(height: 16));
+
+          // FOTO DI BAWAH INSIDE
+          if (pdfImages.isNotEmpty) {
+            elements.add(pw.Text('Lampiran Foto', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)));
+            elements.add(pw.SizedBox(height: 8));
+            elements.add(
+              pw.Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: pdfImages.map((img) => pw.Container(
+                  height: 150,
+                  width: 150,
+                  decoration: pw.BoxDecoration(
+                    border: pw.Border.all(color: PdfColors.grey400, width: 2),
+                    borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
+                  ),
+                  child: pw.ClipRRect(
+                    horizontalRadius: 6,
+                    verticalRadius: 6,
+                    child: pw.Image(img, fit: pw.BoxFit.cover),
+                  ),
+                )).toList(),
+              )
+            );
+          }
+
+          if (i < dataList.length - 1) {
+            elements.add(pw.SizedBox(height: 40));
+            elements.add(pw.Divider(color: PdfColors.black, thickness: 2));
+            elements.add(pw.SizedBox(height: 20));
+          }
+        }
+        return elements;
       },
     ),
   );
 
+  final title = dataList.length == 1 ? 'Laporan_Vape_${dataList.first['storeName'] ?? 'Toko'}' : 'Laporan_Vape_Multi';
   await Printing.layoutPdf(
-    name: 'Laporan_Vape_${data['storeName'] ?? 'Toko'}.pdf',
+    name: '$title.pdf',
     onLayout: (PdfPageFormat format) async => pdf.save(),
   );
 }
@@ -231,15 +267,24 @@ class _DataFormPageState extends State<DataFormPage> {
   final TextEditingController _ctCtrl = TextEditingController();
   final TextEditingController _insideCtrl = TextEditingController();
 
-  File? _image;
+  List<File> _images = [];
   final ImagePicker _picker = ImagePicker();
 
   Future<void> _pickImage(ImageSource source) async {
-    final XFile? pickedFile = await _picker.pickImage(source: source);
-    if (pickedFile != null) {
-      setState(() {
-        _image = File(pickedFile.path);
-      });
+    if (source == ImageSource.gallery) {
+      final List<XFile> pickedFiles = await _picker.pickMultiImage();
+      if (pickedFiles.isNotEmpty) {
+        setState(() {
+          _images.addAll(pickedFiles.map((e) => File(e.path)));
+        });
+      }
+    } else {
+      final XFile? pickedFile = await _picker.pickImage(source: source);
+      if (pickedFile != null) {
+        setState(() {
+          _images.add(File(pickedFile.path));
+        });
+      }
     }
   }
 
@@ -254,7 +299,7 @@ class _DataFormPageState extends State<DataFormPage> {
       'tribe': _tribeCtrl.text,
       'ct': _ctCtrl.text,
       'inside': _insideCtrl.text,
-      'imagePath': _image?.path,
+      'imagePaths': jsonEncode(_images.map((e) => e.path).toList()),
     };
   }
 
@@ -270,7 +315,7 @@ class _DataFormPageState extends State<DataFormPage> {
     _ctCtrl.clear();
     _insideCtrl.clear();
     setState(() {
-      _image = null;
+      _images.clear();
     });
   }
 
@@ -310,7 +355,7 @@ class _DataFormPageState extends State<DataFormPage> {
     }
 
     // 3. Tampilkan PDF (Data menggunakan variabel 'data' yang belum di-clear)
-    await generateAndPrintPdf(data);
+    await generateAndPrintPdf([data]);
   }
 
   Widget _buildSectionTitle(String title, IconData icon) {
@@ -485,12 +530,39 @@ class _DataFormPageState extends State<DataFormPage> {
                       ),
                       const SizedBox(height: 20),
                       
-                      Text('Foto Dokumentasi', style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.bold)),
+                      Text('Foto Dokumentasi (Bisa lebih dari 1)', style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 10),
-                      if (_image != null)
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Image.file(_image!, height: 200, width: double.infinity, fit: BoxFit.cover),
+                      if (_images.isNotEmpty)
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: _images.map((img) => Stack(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: Image.file(img, height: 120, width: 120, fit: BoxFit.cover),
+                              ),
+                              Positioned(
+                                top: 4,
+                                right: 4,
+                                child: InkWell(
+                                  onTap: () {
+                                    setState(() {
+                                      _images.remove(img);
+                                    });
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: const BoxDecoration(
+                                      color: Colors.black54,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(Icons.close, color: Colors.white, size: 16),
+                                  ),
+                                ),
+                              )
+                            ]
+                          )).toList(),
                         )
                       else
                         Container(
@@ -575,6 +647,7 @@ class HistoryPage extends StatefulWidget {
 
 class _HistoryPageState extends State<HistoryPage> {
   List<Map<String, dynamic>> _stores = [];
+  Set<int> _selectedIds = {};
 
   @override
   void initState() {
@@ -586,6 +659,7 @@ class _HistoryPageState extends State<HistoryPage> {
     final data = await DatabaseHelper.instance.getAllStores();
     setState(() {
       _stores = data;
+      _selectedIds.removeWhere((id) => !data.any((store) => store['id'] == id));
     });
   }
 
@@ -608,6 +682,25 @@ class _HistoryPageState extends State<HistoryPage> {
         backgroundColor: Colors.white,
         foregroundColor: Colors.black87,
         elevation: 0,
+        actions: [
+          if (_selectedIds.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.deepOrange,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                icon: const Icon(Icons.picture_as_pdf, size: 18),
+                label: Text('Cetak (${_selectedIds.length})'),
+                onPressed: () {
+                  final selectedData = _stores.where((s) => _selectedIds.contains(s['id'])).toList();
+                  generateAndPrintPdf(selectedData);
+                },
+              ),
+            ),
+        ],
       ),
       body: _stores.isEmpty
           ? Center(
@@ -631,15 +724,38 @@ class _HistoryPageState extends State<HistoryPage> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   child: ExpansionTile(
                     shape: const Border(), // Hilangkan garis saat dibuka
-                    leading: (store['imagePath'] != null && store['imagePath'].toString().isNotEmpty)
-                        ? ClipRRect(
+                    leading: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Checkbox(
+                          value: _selectedIds.contains(store['id']),
+                          onChanged: (bool? value) {
+                            setState(() {
+                              if (value == true) {
+                                _selectedIds.add(store['id']);
+                              } else {
+                                _selectedIds.remove(store['id']);
+                              }
+                            });
+                          },
+                        ),
+                        if (store['imagePaths'] != null && store['imagePaths'].toString().isNotEmpty)
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.file(File(List<String>.from(jsonDecode(store['imagePaths'])).first), width: 50, height: 50, fit: BoxFit.cover),
+                          )
+                        else if (store['imagePath'] != null && store['imagePath'].toString().isNotEmpty)
+                          ClipRRect(
                             borderRadius: BorderRadius.circular(8),
                             child: Image.file(File(store['imagePath']), width: 50, height: 50, fit: BoxFit.cover),
                           )
-                        : CircleAvatar(
+                        else
+                          CircleAvatar(
                             backgroundColor: Colors.blue.shade100,
                             child: const Icon(Icons.store, color: Colors.blue),
                           ),
+                      ],
+                    ),
                     title: Text(store['storeName'] ?? 'No Name', style: const TextStyle(fontWeight: FontWeight.bold)),
                     subtitle: Text(store['address'] ?? 'No Address', maxLines: 1, overflow: TextOverflow.ellipsis),
                     children: [
@@ -718,7 +834,7 @@ class _HistoryPageState extends State<HistoryPage> {
                                   icon: const Icon(Icons.picture_as_pdf, size: 18),
                                   label: const Text('Cetak PDF'),
                                   onPressed: () {
-                                    generateAndPrintPdf(store);
+                                    generateAndPrintPdf([store]);
                                   },
                                 ),
                               ],

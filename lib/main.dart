@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:path_provider/path_provider.dart';
 import 'database_helper.dart';
 
 void main() {
@@ -291,7 +292,15 @@ class _DataFormPageState extends State<DataFormPage> {
     }
   }
 
-  Map<String, dynamic> _getFormData() {
+  Future<Map<String, dynamic>> _getFormDataAsync() async {
+    List<String> savedPaths = [];
+    final dir = await getApplicationDocumentsDirectory();
+    for (File img in _images) {
+      final fileName = DateTime.now().millisecondsSinceEpoch.toString() + '_' + img.path.split('/').last;
+      final savedImage = await img.copy('${dir.path}/$fileName');
+      savedPaths.add(savedImage.path);
+    }
+
     return {
       'storeName': _storeNameCtrl.text,
       'ownerName': _ownerNameCtrl.text,
@@ -302,7 +311,7 @@ class _DataFormPageState extends State<DataFormPage> {
       'tribe': _tribeCtrl.text,
       'ct': _ctCtrl.text,
       'inside': _insideCtrl.text,
-      'imagePaths': jsonEncode(_images.map((e) => e.path).toList()),
+      'imagePaths': jsonEncode(savedPaths),
     };
   }
 
@@ -325,7 +334,8 @@ class _DataFormPageState extends State<DataFormPage> {
   Future<void> _saveOnly() async {
     if (!_formKey.currentState!.validate()) return;
     
-    await DatabaseHelper.instance.insertStore(_getFormData());
+    final data = await _getFormDataAsync();
+    await DatabaseHelper.instance.insertStore(data);
     
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -342,7 +352,7 @@ class _DataFormPageState extends State<DataFormPage> {
     if (!_formKey.currentState!.validate()) return;
     
     // 1. Ambil data
-    final data = _getFormData();
+    final data = await _getFormDataAsync();
     
     // 2. Simpan ke database
     await DatabaseHelper.instance.insertStore(data);

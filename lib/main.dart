@@ -1148,21 +1148,32 @@ class _HistoryPageState extends State<HistoryPage> {
             ),
         ],
       ),
-      body: _stores.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+      body: RefreshIndicator(
+        onRefresh: _syncFromServer,
+        child: _stores.isEmpty
+            ? ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
                 children: [
-                  Icon(Icons.history_toggle_off, size: 80, color: Colors.grey.shade400),
-                  const SizedBox(height: 16),
-                  Text('Belum ada data toko', style: TextStyle(color: Colors.grey.shade600, fontSize: 16)),
+                  SizedBox(
+                    height: MediaQuery.of(context).size.height * 0.7,
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.history_toggle_off, size: 80, color: Colors.grey.shade400),
+                          const SizedBox(height: 16),
+                          Text('Belum ada data toko', style: TextStyle(color: Colors.grey.shade600, fontSize: 16)),
+                        ],
+                      ),
+                    ),
+                  ),
                 ],
-              ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(12),
-              itemCount: _stores.length,
-              itemBuilder: (context, index) {
+              )
+            : ListView.builder(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(12),
+                itemCount: _stores.length,
+                itemBuilder: (context, index) {
                 final store = _stores[index];
                 return Card(
                   elevation: 0, margin: const EdgeInsets.only(bottom: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

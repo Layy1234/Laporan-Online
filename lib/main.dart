@@ -715,10 +715,14 @@ class _DataFormPageState extends State<DataFormPage> {
     
     setState(() => _isLoading = false);
 
+    if (printPdf) {
+      await generateAndPrintPdf(context, [data]);
+    }
+
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(printPdf ? '✅ Tersimpan ke Lokal & Server. Membuka PDF...' : '✅ Data berhasil disimpan ke Lokal & Server!'),
+          content: Text(printPdf ? '✅ PDF berhasil dibuat!' : '✅ Data berhasil disimpan ke Lokal & Server!'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -727,10 +731,6 @@ class _DataFormPageState extends State<DataFormPage> {
       } else {
         _clearForm();
       }
-    }
-
-    if (printPdf) {
-      await generateAndPrintPdf(context, [data]);
     }
   }
 
@@ -1139,9 +1139,9 @@ class _HistoryPageState extends State<HistoryPage> {
     
     showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogCtx) {
         return StatefulBuilder(
-          builder: (context, setStateBuilder) {
+          builder: (dialogCtx, setStateBuilder) {
             return AlertDialog(
               title: const Text('Urutkan Laporan'),
               content: SizedBox(
@@ -1167,10 +1167,10 @@ class _HistoryPageState extends State<HistoryPage> {
                 ),
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal')),
+                TextButton(onPressed: () => Navigator.pop(dialogCtx), child: const Text('Batal')),
                 ElevatedButton(
                   onPressed: () {
-                    Navigator.pop(context);
+                    Navigator.pop(dialogCtx);
                     generateAndPrintPdf(context, reorderedData);
                   },
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.deepOrange, foregroundColor: Colors.white),

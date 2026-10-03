@@ -314,16 +314,65 @@ class WelcomePage extends StatefulWidget {
 
 class _WelcomePageState extends State<WelcomePage> {
   final _nameCtrl = TextEditingController();
+  final _usernameCtrl = TextEditingController();
+  bool _isLogin = true;
+  bool _isLoading = false;
 
-  void _saveName() async {
-    if (_nameCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nama tidak boleh kosong')));
+  void _submit() async {
+    final username = _usernameCtrl.text.trim();
+    final name = _nameCtrl.text.trim();
+
+    if (username.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Username tidak boleh kosong')));
       return;
     }
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('userName', _nameCtrl.text.trim());
+    if (!_isLogin && name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nama lengkap tidak boleh kosong')));
+      return;
+    }
+
+    setState(() { _isLoading = true; });
+
+    try {
+      final authUrl = apiUrl.replaceAll('api.php', 'auth.php');
+      final response = await http.post(
+        Uri.parse(authUrl),
+        body: _isLogin 
+          ? {'action': 'login', 'username': username}
+          : {'action': 'register', 'username': username, 'nama': name},
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+      if (data['status'] == 'success') {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('userName', data['data']['nama'] ?? name);
+        await prefs.setString('username', data['data']['username'] ?? username);
+        if (mounted) {
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DataFormPage()));
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(data['message'] ?? 'Gagal')));
+        }
+      }
+    } catch (e) {
+      // Fallback lokal jika tidak ada internet atau server error
+      if (mounted) {
+        if (!_isLogin) {
+          // Jika register dan error, kita simpan secara lokal saja (offline fallback)
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('userName', name);
+          await prefs.setString('username', username);
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DataFormPage()));
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Disimpan lokal (Offline)')));
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Terjadi kesalahan: $e')));
+        }
+      }
+    }
+
     if (mounted) {
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DataFormPage()));
+      setState(() { _isLoading = false; });
     }
   }
 
@@ -331,29 +380,66 @@ class _WelcomePageState extends State<WelcomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Icon(Icons.account_circle, size: 80, color: Colors.deepOrange),
-            const SizedBox(height: 24),
-            const Text('Selamat Datang!', textAlign: TextAlign.center, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            const Text('Silakan masukkan nama Anda. Nama ini akan otomatis dikirimkan ke Laporan Server agar tidak tertukar.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
-            const SizedBox(height: 32),
-            TextField(
-              controller: _nameCtrl,
-              decoration: const InputDecoration(labelText: 'Nama Lengkap', prefixIcon: Icon(Icons.person)),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: _saveName,
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.deepOrange, foregroundColor: Colors.white),
-              child: const Text('Mulai Aplikasi', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            ),
-          ],
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Icon(Icons.account_circle, size: 80, color: Colors.deepOrange),
+              const SizedBox(height: 24),
+              Text(
+                _isLogin ? 'Selamat Datang Kembali!' : 'Buat Akun Baru',
+                textAlign: TextAlign.center, 
+                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _isLogin 
+                  ? 'Silakan masukkan Username Anda untuk melanjutkan.' 
+                  : 'Silakan buat akun. Cukup masukkan Username dan Nama Anda.',
+                textAlign: TextAlign.center, 
+                style: const TextStyle(color: Colors.grey)
+              ),
+              const SizedBox(height: 32),
+              
+              TextField(
+                controller: _usernameCtrl,
+                decoration: const InputDecoration(labelText: 'Username', prefixIcon: Icon(Icons.alternate_email)),
+              ),
+              if (!_isLogin) ...[
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _nameCtrl,
+                  decoration: const InputDecoration(labelText: 'Nama Lengkap', prefixIcon: Icon(Icons.person)),
+                ),
+              ],
+              
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: _isLoading ? null : _submit,
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.deepOrange, foregroundColor: Colors.white),
+                child: _isLoading 
+                  ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : Text(_isLogin ? 'Masuk' : 'Daftar', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              ),
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    _isLogin = !_isLogin;
+                    _usernameCtrl.clear();
+                    _nameCtrl.clear();
+                  });
+                },
+                child: Text(
+                  _isLogin ? 'Belum punya akun? Daftar di sini' : 'Sudah punya akun? Masuk di sini',
+                  style: const TextStyle(color: Colors.deepOrange, fontWeight: FontWeight.bold)
+                ),
+              )
+            ],
+          ),
         ),
       ),
     );
@@ -600,78 +686,86 @@ class _DataFormPageState extends State<DataFormPage> {
         backgroundColor: Colors.white,
         foregroundColor: Colors.black87,
         elevation: 0,
-        actions: [
-          if (widget.storeData == null)
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.menu, color: Colors.deepOrange),
-              tooltip: 'Menu',
-              onSelected: (value) async {
-                if (value == 'edit_nama') {
-                  final prefs = await SharedPreferences.getInstance();
-                  final currentName = prefs.getString('userName') ?? '';
-                  final TextEditingController nameCtrl = TextEditingController(text: currentName);
-                  if (mounted) {
-                    showDialog(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        title: const Text('Edit Nama Pengguna'),
-                        content: TextField(
-                          controller: nameCtrl,
-                          decoration: const InputDecoration(labelText: 'Nama Lengkap'),
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(ctx),
-                            child: const Text('Batal'),
-                          ),
-                          ElevatedButton(
-                            onPressed: () async {
-                              if (nameCtrl.text.trim().isNotEmpty) {
-                                await prefs.setString('userName', nameCtrl.text.trim());
-                                if (mounted) {
-                                  Navigator.pop(ctx);
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Nama berhasil diperbarui')),
-                                  );
-                                }
-                              }
-                            },
-                            style: ElevatedButton.styleFrom(backgroundColor: Colors.deepOrange, foregroundColor: Colors.white),
-                            child: const Text('Simpan'),
-                          )
-                        ],
+        // actions dihapus agar otomatis muncul hamburger icon untuk endDrawer
+      ),
+      endDrawer: widget.storeData == null ? Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            const DrawerHeader(
+              decoration: BoxDecoration(color: Colors.deepOrange),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Icon(Icons.account_circle, color: Colors.white, size: 48),
+                  SizedBox(height: 8),
+                  Text('Menu Utama', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.history_edu, color: Colors.deepOrange),
+              title: const Text('Riwayat Laporan'),
+              onTap: () {
+                Navigator.pop(context); // Tutup drawer
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const HistoryPage()));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.person, color: Colors.deepOrange),
+              title: const Text('Ganti Nama'),
+              onTap: () async {
+                Navigator.pop(context); // Tutup drawer
+                final prefs = await SharedPreferences.getInstance();
+                final currentName = prefs.getString('userName') ?? '';
+                final TextEditingController nameCtrl = TextEditingController(text: currentName);
+                if (mounted) {
+                  showDialog(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      title: const Text('Ganti Nama Pengguna'),
+                      content: TextField(
+                        controller: nameCtrl,
+                        decoration: const InputDecoration(labelText: 'Nama Lengkap'),
                       ),
-                    );
-                  }
-                } else if (value == 'riwayat') {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const HistoryPage()));
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
+                        ElevatedButton(
+                          onPressed: () async {
+                            if (nameCtrl.text.trim().isNotEmpty) {
+                              await prefs.setString('userName', nameCtrl.text.trim());
+                              if (mounted) {
+                                Navigator.pop(ctx);
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nama berhasil diperbarui')));
+                              }
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.deepOrange, foregroundColor: Colors.white),
+                          child: const Text('Simpan'),
+                        )
+                      ],
+                    ),
+                  );
                 }
               },
-              itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-                const PopupMenuItem<String>(
-                  value: 'edit_nama',
-                  child: Row(
-                    children: [
-                      Icon(Icons.person, color: Colors.deepOrange),
-                      SizedBox(width: 8),
-                      Text('Edit Nama'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem<String>(
-                  value: 'riwayat',
-                  child: Row(
-                    children: [
-                      Icon(Icons.history_edu, color: Colors.deepOrange),
-                      SizedBox(width: 8),
-                      Text('Riwayat / Struk'),
-                    ],
-                  ),
-                ),
-              ],
             ),
-        ],
-      ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.logout, color: Colors.red),
+              title: const Text('Logout', style: TextStyle(color: Colors.red)),
+              onTap: () async {
+                Navigator.pop(context); // Tutup drawer
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.remove('userName');
+                if (mounted) {
+                  Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const WelcomePage()));
+                }
+              },
+            ),
+          ],
+        ),
+      ) : null,
       body: Stack(
         children: [
           SingleChildScrollView(

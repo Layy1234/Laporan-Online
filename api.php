@@ -85,10 +85,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 
     if ($stmt->execute()) {
+        $inserted_id = $id ? $id : $conn->insert_id;
         echo json_encode([
             "status" => "success", 
             "message" => "Data berhasil disimpan ke server!",
-            "images" => $uploadedImages
+            "images" => $uploadedImages,
+            "id" => $inserted_id
         ]);
     } else {
         echo json_encode([

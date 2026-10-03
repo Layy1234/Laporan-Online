@@ -989,12 +989,61 @@ class HistoryPage extends StatefulWidget {
 
 class _HistoryPageState extends State<HistoryPage> {
   List<Map<String, dynamic>> _stores = [];
+  bool _isSyncing = false;
+  Future<void> _syncFromServer() async {
+    setState(() => _isSyncing = true);
+    try {
+      final response = await http.get(Uri.parse(apiUrl));
+      if (response.statusCode == 200) {
+        final resData = jsonDecode(response.body);
+        if (resData["status"] == "success") {
+          final List storesData = resData["data"];
+          final db = await DatabaseHelper.instance.database;
+          await db.delete("stores");
+          for (var store in storesData) {
+            String imagePathsStr = "";
+            if (store["imagePaths"] != null) {
+              if (store["imagePaths"] is List) {
+                imagePathsStr = jsonEncode(store["imagePaths"]);
+              } else {
+                imagePathsStr = store["imagePaths"].toString();
+              }
+            }
+            Map<String, dynamic> localStore = {
+              "id": int.tryParse(store["id"].toString()) ?? 0,
+              "storeName": store["storeName"] ?? "",
+              "ownerName": store["ownerName"] ?? "",
+              "picName": store["picName"] ?? "",
+              "address": store["address"] ?? "",
+              "volx": store["volx"] ?? "",
+              "takis": store["takis"] ?? "",
+              "tribe": store["tribe"] ?? "",
+              "pod_volx": store["pod_volx"] ?? "",
+              "pod_takis": store["pod_takis"] ?? "",
+              "pod_tribe": store["pod_tribe"] ?? "",
+              "ct": store["ct"] ?? "",
+              "inside": store["inside"] ?? "",
+              "reporterName": store["reporterName"] ?? "",
+              "imagePaths": imagePathsStr,
+              "createdAt": store["createdAt"] ?? "",
+            };
+            await DatabaseHelper.instance.insertStore(localStore);
+          }
+        }
+      }
+    } catch (e) {
+      print("Sync error: " + e.toString());
+    }
+    setState(() => _isSyncing = false);
+    _refreshStores();
+  }
+
   Set<int> _selectedIds = {};
 
   @override
   void initState() {
     super.initState();
-    _refreshStores();
+    _syncFromServer();
   }
 
   Future<void> _refreshStores() async {
@@ -1121,7 +1170,10 @@ class _HistoryPageState extends State<HistoryPage> {
                           },
                         ),
                         if (store['imagePaths'] != null && store['imagePaths'].toString().isNotEmpty)
-                          ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.file(File(List<String>.from(jsonDecode(store['imagePaths'])).first), width: 50, height: 50, fit: BoxFit.cover))
+                          ClipRRect(borderRadius: BorderRadius.circular(8), child: Builder(builder: (context) {
+                            final path = List<String>.from(jsonDecode(store['imagePaths'])).first;
+                            return path.startsWith('http') ? Image.network(path, width: 50, height: 50, fit: BoxFit.cover) : Image.file(File(path), width: 50, height: 50, fit: BoxFit.cover);
+                          }))
                         else
                           CircleAvatar(backgroundColor: Colors.blue.shade100, child: const Icon(Icons.store, color: Colors.blue)),
                       ],

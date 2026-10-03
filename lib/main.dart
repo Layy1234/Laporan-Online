@@ -104,82 +104,87 @@ Future<void> generateAndPrintPdf(List<Map<String, dynamic>> dataList) async {
           ));
 
           elements.add(
-            pw.Container(
-              padding: const pw.EdgeInsets.all(12),
-              decoration: pw.BoxDecoration(color: PdfColors.grey100, borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8))),
-              child: pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  pw.Text('Informasi Toko', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
-                  pw.Divider(color: PdfColors.grey400),
-                  pw.SizedBox(height: 4),
-                  pw.Row(children: [
-                    pw.Expanded(child: pw.Text('Nama Toko:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12))),
-                    pw.Expanded(flex: 2, child: pw.Text('${data['storeName'] ?? '-'}', style: const pw.TextStyle(fontSize: 12))),
-                  ]),
-                  pw.SizedBox(height: 2),
-                  pw.Row(children: [
-                    pw.Expanded(child: pw.Text('Owner:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12))),
-                    pw.Expanded(flex: 2, child: pw.Text('${data['ownerName'] ?? '-'}', style: const pw.TextStyle(fontSize: 12))),
-                  ]),
-                  pw.SizedBox(height: 2),
-                  pw.Row(children: [
-                    pw.Expanded(child: pw.Text('PIC:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12))),
-                    pw.Expanded(flex: 2, child: pw.Text('${data['picName'] ?? '-'}', style: const pw.TextStyle(fontSize: 12))),
-                  ]),
-                  pw.SizedBox(height: 2),
-                  pw.Row(children: [
-                    pw.Expanded(child: pw.Text('Alamat:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12))),
-                    pw.Expanded(flex: 2, child: pw.Text('${data['address'] ?? '-'}', style: const pw.TextStyle(fontSize: 12))),
-                  ]),
-                ],
-              ),
-            )
-          );
-          elements.add(pw.SizedBox(height: 12));
-
-          // DATA INVENTORY PDF (LIQUID & POD, LALU CT)
-          elements.add(
-            pw.Container(
-              padding: const pw.EdgeInsets.all(12),
-              decoration: pw.BoxDecoration(color: PdfColors.orange50, borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8))),
-              child: pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  pw.Text('Data Produk / Inventory', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
-                  pw.Divider(color: PdfColors.orange200),
-                  pw.SizedBox(height: 4),
-                  pw.Text('Liquid', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: PdfColors.orange800)),
-                  pw.SizedBox(height: 2),
-                  pw.Row(
-                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                    children: [
-                      pw.Text('Liquid VOLX: ${data['volx'] != null && data['volx'].toString().isNotEmpty ? data['volx'] : '-'}', style: pw.TextStyle(fontSize: 12)),
-                      pw.Text('Liquid TAKIS: ${data['takis'] != null && data['takis'].toString().isNotEmpty ? data['takis'] : '-'}', style: pw.TextStyle(fontSize: 12)),
-                      pw.Text('Liquid TRIBE: ${data['tribe'] != null && data['tribe'].toString().isNotEmpty ? data['tribe'] : '-'}', style: pw.TextStyle(fontSize: 12)),
-                    ],
+            pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Expanded(
+                  child: pw.Container(
+                    padding: const pw.EdgeInsets.all(12),
+                    decoration: pw.BoxDecoration(color: PdfColors.grey100, borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8))),
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text('Informasi Toko', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+                        pw.Divider(color: PdfColors.grey400),
+                        pw.SizedBox(height: 4),
+                        pw.Row(children: [
+                          pw.Expanded(child: pw.Text('Nama Toko:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12))),
+                          pw.Expanded(flex: 2, child: pw.Text('${data['storeName'] ?? '-'}', style: const pw.TextStyle(fontSize: 12))),
+                        ]),
+                        pw.SizedBox(height: 2),
+                        pw.Row(children: [
+                          pw.Expanded(child: pw.Text('Owner:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12))),
+                          pw.Expanded(flex: 2, child: pw.Text('${data['ownerName'] ?? '-'}', style: const pw.TextStyle(fontSize: 12))),
+                        ]),
+                        pw.SizedBox(height: 2),
+                        pw.Row(children: [
+                          pw.Expanded(child: pw.Text('PIC:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12))),
+                          pw.Expanded(flex: 2, child: pw.Text('${data['picName'] ?? '-'}', style: const pw.TextStyle(fontSize: 12))),
+                        ]),
+                        pw.SizedBox(height: 2),
+                        pw.Row(children: [
+                          pw.Expanded(child: pw.Text('Alamat:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12))),
+                          pw.Expanded(flex: 2, child: pw.Text('${data['address'] ?? '-'}', style: const pw.TextStyle(fontSize: 12))),
+                        ]),
+                      ],
+                    ),
                   ),
-                  pw.SizedBox(height: 8),
-                  
-                  pw.Text('Pod', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: PdfColors.orange800)),
-                  pw.SizedBox(height: 2),
-                  pw.Row(
-                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                    children: [
-                      pw.Text('Pod VOLX: ${data['pod_volx'] != null && data['pod_volx'].toString().isNotEmpty ? data['pod_volx'] : '-'}', style: pw.TextStyle(fontSize: 12)),
-                      pw.Text('Pod TAKIS: ${data['pod_takis'] != null && data['pod_takis'].toString().isNotEmpty ? data['pod_takis'] : '-'}', style: pw.TextStyle(fontSize: 12)),
-                      pw.Text('Pod TRIBE: ${data['pod_tribe'] != null && data['pod_tribe'].toString().isNotEmpty ? data['pod_tribe'] : '-'}', style: pw.TextStyle(fontSize: 12)),
-                    ],
+                ),
+                pw.SizedBox(width: 12),
+                pw.Expanded(
+                  child: pw.Container(
+                    padding: const pw.EdgeInsets.all(12),
+                    decoration: pw.BoxDecoration(color: PdfColors.orange50, borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8))),
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text('Data Produk / Inventory', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+                        pw.Divider(color: PdfColors.orange200),
+                        pw.SizedBox(height: 4),
+                        pw.Text('Liquid', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: PdfColors.orange800)),
+                        pw.SizedBox(height: 2),
+                        pw.Row(
+                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                          children: [
+                            pw.Text('Liquid VOLX: ${data['volx'] != null && data['volx'].toString().isNotEmpty ? data['volx'] : '-'}', style: pw.TextStyle(fontSize: 12)),
+                            pw.Text('Liquid TAKIS: ${data['takis'] != null && data['takis'].toString().isNotEmpty ? data['takis'] : '-'}', style: pw.TextStyle(fontSize: 12)),
+                            pw.Text('Liquid TRIBE: ${data['tribe'] != null && data['tribe'].toString().isNotEmpty ? data['tribe'] : '-'}', style: pw.TextStyle(fontSize: 12)),
+                          ],
+                        ),
+                        pw.SizedBox(height: 8),
+                        
+                        pw.Text('Pod', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: PdfColors.orange800)),
+                        pw.SizedBox(height: 2),
+                        pw.Row(
+                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                          children: [
+                            pw.Text('Pod VOLX: ${data['pod_volx'] != null && data['pod_volx'].toString().isNotEmpty ? data['pod_volx'] : '-'}', style: pw.TextStyle(fontSize: 12)),
+                            pw.Text('Pod TAKIS: ${data['pod_takis'] != null && data['pod_takis'].toString().isNotEmpty ? data['pod_takis'] : '-'}', style: pw.TextStyle(fontSize: 12)),
+                            pw.Text('Pod TRIBE: ${data['pod_tribe'] != null && data['pod_tribe'].toString().isNotEmpty ? data['pod_tribe'] : '-'}', style: pw.TextStyle(fontSize: 12)),
+                          ],
+                        ),
+                        pw.SizedBox(height: 8),
+                        pw.Divider(color: PdfColors.orange200),
+                        pw.SizedBox(height: 4),
+                        
+                        // CT Paling Bawah
+                        pw.Text('CT: ${data['ct'] != null && data['ct'].toString().isNotEmpty ? data['ct'] : '-'}', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
+                      ],
+                    ),
                   ),
-                  pw.SizedBox(height: 8),
-                  pw.Divider(color: PdfColors.orange200),
-                  pw.SizedBox(height: 4),
-                  
-                  // CT Paling Bawah
-                  pw.Text('CT: ${data['ct'] != null && data['ct'].toString().isNotEmpty ? data['ct'] : '-'}', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
-                ],
-              ),
-            )
+                ),
+              ],
+            ),
           );
           elements.add(pw.SizedBox(height: 12));
 
@@ -230,9 +235,13 @@ Future<void> generateAndPrintPdf(List<Map<String, dynamic>> dataList) async {
   );
 
   final now = DateTime.now();
-  final dateStr = '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
+  final List<String> monthNames = [
+    '', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+  ];
+  final dateStr = '${now.day} ${monthNames[now.month]}';
   final userNameSanitized = userName.replaceAll(' ', '_');
-  final title = 'LAPORAN_${dateStr}_$userNameSanitized';
+  final title = 'Laporan_Tanggal ${dateStr}_$userNameSanitized';
   
   await Printing.layoutPdf(
     name: '$title.pdf',
@@ -485,6 +494,9 @@ class _DataFormPageState extends State<DataFormPage> {
 
     try {
       var request = http.MultipartRequest('POST', Uri.parse(apiUrl));
+      if (data['id'] != null) {
+        request.fields['id'] = data['id'].toString();
+      }
       request.fields['storeName'] = data['storeName'] ?? '';
       request.fields['ownerName'] = data['ownerName'] ?? '';
       request.fields['picName'] = data['picName'] ?? '';

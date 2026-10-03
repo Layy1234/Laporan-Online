@@ -69,9 +69,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $imagePathsJson = json_encode($uploadedImages);
 
     // 3. Simpan data ke Database MySQL
-    $stmt = $conn->prepare("INSERT INTO stores (storeName, ownerName, picName, address, volx, takis, tribe, pod_volx, pod_takis, pod_tribe, ct, inside, reporterName, imagePaths, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    $id = $_POST['id'] ?? null;
     
-    $stmt->bind_param("sssssssssssssss", $storeName, $ownerName, $picName, $address, $volx, $takis, $tribe, $pod_volx, $pod_takis, $pod_tribe, $ct, $inside, $reporterName, $imagePathsJson, $createdAt);
+    if ($id) {
+        if (!empty($uploadedImages)) {
+            $stmt = $conn->prepare("UPDATE stores SET storeName=?, ownerName=?, picName=?, address=?, volx=?, takis=?, tribe=?, pod_volx=?, pod_takis=?, pod_tribe=?, ct=?, inside=?, reporterName=?, imagePaths=? WHERE id=?");
+            $stmt->bind_param("ssssssssssssssi", $storeName, $ownerName, $picName, $address, $volx, $takis, $tribe, $pod_volx, $pod_takis, $pod_tribe, $ct, $inside, $reporterName, $imagePathsJson, $id);
+        } else {
+            $stmt = $conn->prepare("UPDATE stores SET storeName=?, ownerName=?, picName=?, address=?, volx=?, takis=?, tribe=?, pod_volx=?, pod_takis=?, pod_tribe=?, ct=?, inside=?, reporterName=? WHERE id=?");
+            $stmt->bind_param("sssssssssssssi", $storeName, $ownerName, $picName, $address, $volx, $takis, $tribe, $pod_volx, $pod_takis, $pod_tribe, $ct, $inside, $reporterName, $id);
+        }
+    } else {
+        $stmt = $conn->prepare("INSERT INTO stores (storeName, ownerName, picName, address, volx, takis, tribe, pod_volx, pod_takis, pod_tribe, ct, inside, reporterName, imagePaths, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("sssssssssssssss", $storeName, $ownerName, $picName, $address, $volx, $takis, $tribe, $pod_volx, $pod_takis, $pod_tribe, $ct, $inside, $reporterName, $imagePathsJson, $createdAt);
+    }
 
     if ($stmt->execute()) {
         echo json_encode([

@@ -51,10 +51,58 @@ Future<void> _cleanOldData() async {
   }
 }
 
-Future<void> generateAndPrintPdf(List<Map<String, dynamic>> dataList) async {
+Future<void> generateAndPrintPdf(BuildContext context, List<Map<String, dynamic>> dataList) async {
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (BuildContext ctx) {
+      return const Dialog(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(color: Colors.deepOrange),
+              SizedBox(height: 16),
+              Text('Menyiapkan Pratinjau PDF...', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+
   final pdf = pw.Document();
   final prefs = await SharedPreferences.getInstance();
   final userName = prefs.getString('userName') ?? 'Tidak Ada Nama';
+
+  // Preload and resize images asynchronously to speed up PDF generation and reduce memory
+  Map<String, pw.ImageProvider> preloadedImages = {};
+  for (var data in dataList) {
+    List<String> imagePaths = [];
+    if (data['imagePaths'] != null && data['imagePaths'].toString().isNotEmpty) {
+      try { imagePaths = List<String>.from(jsonDecode(data['imagePaths'])); } catch(e){}
+    } else if (data['imagePath'] != null && data['imagePath'].toString().isNotEmpty) {
+      imagePaths = [data['imagePath']];
+    }
+    for (String path in imagePaths) {
+      if (!preloadedImages.containsKey(path)) {
+        final imageFile = File(path);
+        if (imageFile.existsSync()) {
+          try {
+            preloadedImages[path] = await flutterImageProvider(
+              ResizeImage(FileImage(imageFile), width: 800),
+            );
+          } catch (e) {
+            print("Error loading image $path: $e");
+          }
+        }
+      }
+    }
+  }
+
+  if (context.mounted) Navigator.pop(context);
 
   pdf.addPage(
     pw.MultiPage(
@@ -65,7 +113,7 @@ Future<void> generateAndPrintPdf(List<Map<String, dynamic>> dataList) async {
         for (int i = 0; i < dataList.length; i++) {
           final data = dataList[i];
           
-          List<pw.MemoryImage> pdfImages = [];
+          List<pw.ImageProvider> pdfImages = [];
           List<String> imagePaths = [];
           if (data['imagePaths'] != null && data['imagePaths'].toString().isNotEmpty) {
             try { imagePaths = List<String>.from(jsonDecode(data['imagePaths'])); } catch(e){}
@@ -74,9 +122,8 @@ Future<void> generateAndPrintPdf(List<Map<String, dynamic>> dataList) async {
           }
 
           for (String path in imagePaths) {
-            final imageFile = File(path);
-            if (imageFile.existsSync()) {
-              pdfImages.add(pw.MemoryImage(imageFile.readAsBytesSync()));
+            if (preloadedImages.containsKey(path)) {
+              pdfImages.add(preloadedImages[path]!);
             }
           }
 
@@ -666,7 +713,7 @@ class _DataFormPageState extends State<DataFormPage> {
     }
 
     if (printPdf) {
-      await generateAndPrintPdf([data]);
+      await generateAndPrintPdf(context, [data]);
     }
   }
 
@@ -1107,7 +1154,7 @@ class _HistoryPageState extends State<HistoryPage> {
                 ElevatedButton(
                   onPressed: () {
                     Navigator.pop(context);
-                    generateAndPrintPdf(reorderedData);
+                    generateAndPrintPdf(context, reorderedData);
                   },
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.deepOrange, foregroundColor: Colors.white),
                   child: const Text('Buat PDF'),
@@ -1140,7 +1187,7 @@ class _HistoryPageState extends State<HistoryPage> {
                     _showReorderDialog();
                   } else {
                     final selectedData = _stores.where((s) => _selectedIds.contains(s['id'])).toList();
-                    generateAndPrintPdf(selectedData);
+                    generateAndPrintPdf(context, selectedData);
                   }
                 },
               ),

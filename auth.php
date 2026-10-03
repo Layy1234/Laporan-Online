@@ -18,13 +18,21 @@ if ($conn->connect_error) {
     die(json_encode(["status" => "error", "message" => "Connection failed: " . $conn->connect_error]));
 }
 
+$raw_json = file_get_contents('php://input');
+if (!empty($raw_json)) {
+    $decoded = json_decode($raw_json, true);
+    if (is_array($decoded)) {
+        $_POST = array_merge($_POST, $decoded);
+    }
+}
+
 $action = $_POST['action'] ?? '';
 
 if ($action == 'register') {
-    $nama = $_POST['nama'] ?? '';
-    $user = $_POST['username'] ?? '';
+    $nama = trim($_POST['nama'] ?? '');
+    $user = trim($_POST['username'] ?? '');
 
-    if (empty($nama) || empty($user)) {
+    if ($nama === '' || $user === '') {
         echo json_encode(["status" => "error", "message" => "Data tidak boleh kosong"]);
         exit;
     }
@@ -49,9 +57,9 @@ if ($action == 'register') {
     $stmt->close();
 
 } elseif ($action == 'login') {
-    $user = $_POST['username'] ?? '';
+    $user = trim($_POST['username'] ?? '');
 
-    if (empty($user)) {
+    if ($user === '') {
         echo json_encode(["status" => "error", "message" => "Username tidak boleh kosong"]);
         exit;
     }

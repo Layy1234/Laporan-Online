@@ -151,30 +151,38 @@ Future<void> generateAndPrintPdf(List<Map<String, dynamic>> dataList) async {
                         pw.Text('Data Produk / Inventory', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
                         pw.Divider(color: PdfColors.orange200),
                         pw.SizedBox(height: 4),
-                        pw.Text('Liquid', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: PdfColors.orange800)),
-                        pw.SizedBox(height: 2),
-                        pw.Column(
+                        pw.Row(
                           crossAxisAlignment: pw.CrossAxisAlignment.start,
                           children: [
-                            pw.Text('VOLX: ${data['volx'] != null && data['volx'].toString().isNotEmpty ? data['volx'] : '-'}', style: pw.TextStyle(fontSize: 12)),
-                            pw.SizedBox(height: 2),
-                            pw.Text('TAKIS: ${data['takis'] != null && data['takis'].toString().isNotEmpty ? data['takis'] : '-'}', style: pw.TextStyle(fontSize: 12)),
-                            pw.SizedBox(height: 2),
-                            pw.Text('TRIBE: ${data['tribe'] != null && data['tribe'].toString().isNotEmpty ? data['tribe'] : '-'}', style: pw.TextStyle(fontSize: 12)),
-                          ],
-                        ),
-                        pw.SizedBox(height: 8),
-                        
-                        pw.Text('Pod', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: PdfColors.orange800)),
-                        pw.SizedBox(height: 2),
-                        pw.Column(
-                          crossAxisAlignment: pw.CrossAxisAlignment.start,
-                          children: [
-                            pw.Text('VOLX: ${data['pod_volx'] != null && data['pod_volx'].toString().isNotEmpty ? data['pod_volx'] : '-'}', style: pw.TextStyle(fontSize: 12)),
-                            pw.SizedBox(height: 2),
-                            pw.Text('TAKIS: ${data['pod_takis'] != null && data['pod_takis'].toString().isNotEmpty ? data['pod_takis'] : '-'}', style: pw.TextStyle(fontSize: 12)),
-                            pw.SizedBox(height: 2),
-                            pw.Text('TRIBE: ${data['pod_tribe'] != null && data['pod_tribe'].toString().isNotEmpty ? data['pod_tribe'] : '-'}', style: pw.TextStyle(fontSize: 12)),
+                            pw.Expanded(
+                              child: pw.Column(
+                                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                                children: [
+                                  pw.Text('Liquid', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: PdfColors.orange800)),
+                                  pw.SizedBox(height: 2),
+                                  pw.Text('VOLX: ${data['volx'] != null && data['volx'].toString().isNotEmpty ? data['volx'] : '-'}', style: pw.TextStyle(fontSize: 12)),
+                                  pw.SizedBox(height: 2),
+                                  pw.Text('TAKIS: ${data['takis'] != null && data['takis'].toString().isNotEmpty ? data['takis'] : '-'}', style: pw.TextStyle(fontSize: 12)),
+                                  pw.SizedBox(height: 2),
+                                  pw.Text('TRIBE: ${data['tribe'] != null && data['tribe'].toString().isNotEmpty ? data['tribe'] : '-'}', style: pw.TextStyle(fontSize: 12)),
+                                ],
+                              ),
+                            ),
+                            pw.SizedBox(width: 8),
+                            pw.Expanded(
+                              child: pw.Column(
+                                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                                children: [
+                                  pw.Text('Pod', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: PdfColors.orange800)),
+                                  pw.SizedBox(height: 2),
+                                  pw.Text('VOLX: ${data['pod_volx'] != null && data['pod_volx'].toString().isNotEmpty ? data['pod_volx'] : '-'}', style: pw.TextStyle(fontSize: 12)),
+                                  pw.SizedBox(height: 2),
+                                  pw.Text('TAKIS: ${data['pod_takis'] != null && data['pod_takis'].toString().isNotEmpty ? data['pod_takis'] : '-'}', style: pw.TextStyle(fontSize: 12)),
+                                  pw.SizedBox(height: 2),
+                                  pw.Text('TRIBE: ${data['pod_tribe'] != null && data['pod_tribe'].toString().isNotEmpty ? data['pod_tribe'] : '-'}', style: pw.TextStyle(fontSize: 12)),
+                                ],
+                              ),
+                            ),
                           ],
                         ),
                         pw.SizedBox(height: 8),

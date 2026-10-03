@@ -26,6 +26,7 @@ if ($conn->connect_error) {
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     
     // 1. Ambil data teks dari form
+    $user_id = $_POST['user_id'] ?? null;
     $storeName = $_POST['storeName'] ?? '';
     $ownerName = $_POST['ownerName'] ?? '';
     $picName = $_POST['picName'] ?? '';
@@ -73,15 +74,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     
     if ($id) {
         if (!empty($uploadedImages)) {
-            $stmt = $conn->prepare("UPDATE stores SET storeName=?, ownerName=?, picName=?, address=?, volx=?, takis=?, tribe=?, pod_volx=?, pod_takis=?, pod_tribe=?, ct=?, inside=?, reporterName=?, imagePaths=? WHERE id=?");
-            $stmt->bind_param("ssssssssssssssi", $storeName, $ownerName, $picName, $address, $volx, $takis, $tribe, $pod_volx, $pod_takis, $pod_tribe, $ct, $inside, $reporterName, $imagePathsJson, $id);
+            $stmt = $conn->prepare("UPDATE stores SET user_id=?, storeName=?, ownerName=?, picName=?, address=?, volx=?, takis=?, tribe=?, pod_volx=?, pod_takis=?, pod_tribe=?, ct=?, inside=?, reporterName=?, imagePaths=? WHERE id=?");
+            $stmt->bind_param("issssssssssssssi", $user_id, $storeName, $ownerName, $picName, $address, $volx, $takis, $tribe, $pod_volx, $pod_takis, $pod_tribe, $ct, $inside, $reporterName, $imagePathsJson, $id);
         } else {
-            $stmt = $conn->prepare("UPDATE stores SET storeName=?, ownerName=?, picName=?, address=?, volx=?, takis=?, tribe=?, pod_volx=?, pod_takis=?, pod_tribe=?, ct=?, inside=?, reporterName=? WHERE id=?");
-            $stmt->bind_param("sssssssssssssi", $storeName, $ownerName, $picName, $address, $volx, $takis, $tribe, $pod_volx, $pod_takis, $pod_tribe, $ct, $inside, $reporterName, $id);
+            $stmt = $conn->prepare("UPDATE stores SET user_id=?, storeName=?, ownerName=?, picName=?, address=?, volx=?, takis=?, tribe=?, pod_volx=?, pod_takis=?, pod_tribe=?, ct=?, inside=?, reporterName=? WHERE id=?");
+            $stmt->bind_param("isssssssssssssi", $user_id, $storeName, $ownerName, $picName, $address, $volx, $takis, $tribe, $pod_volx, $pod_takis, $pod_tribe, $ct, $inside, $reporterName, $id);
         }
     } else {
-        $stmt = $conn->prepare("INSERT INTO stores (storeName, ownerName, picName, address, volx, takis, tribe, pod_volx, pod_takis, pod_tribe, ct, inside, reporterName, imagePaths, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-        $stmt->bind_param("sssssssssssssss", $storeName, $ownerName, $picName, $address, $volx, $takis, $tribe, $pod_volx, $pod_takis, $pod_tribe, $ct, $inside, $reporterName, $imagePathsJson, $createdAt);
+        $stmt = $conn->prepare("INSERT INTO stores (user_id, storeName, ownerName, picName, address, volx, takis, tribe, pod_volx, pod_takis, pod_tribe, ct, inside, reporterName, imagePaths, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("isssssssssssssss", $user_id, $storeName, $ownerName, $picName, $address, $volx, $takis, $tribe, $pod_volx, $pod_takis, $pod_tribe, $ct, $inside, $reporterName, $imagePathsJson, $createdAt);
     }
 
     if ($stmt->execute()) {
@@ -102,8 +103,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $stmt->close();
 } else if ($_SERVER['REQUEST_METHOD'] == 'GET') {
     // GET UNTUK MENAMPILKAN DATA
-    $sql = "SELECT * FROM stores ORDER BY id DESC";
-    $result = $conn->query($sql);
+    $user_id = $_GET['user_id'] ?? null;
+    
+    if ($user_id) {
+        $stmt = $conn->prepare("SELECT * FROM stores WHERE user_id = ? ORDER BY id DESC");
+        $stmt->bind_param("i", $user_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+    } else {
+        $sql = "SELECT * FROM stores ORDER BY id DESC";
+        $result = $conn->query($sql);
+    }
 
     $data = [];
     if ($result->num_rows > 0) {

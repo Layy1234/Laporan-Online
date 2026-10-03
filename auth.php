@@ -48,7 +48,8 @@ if ($action == 'register') {
         $stmt2 = $conn->prepare("INSERT INTO users (nama, username) VALUES (?, ?)");
         $stmt2->bind_param("ss", $nama, $user);
         if ($stmt2->execute()) {
-            echo json_encode(["status" => "success", "message" => "Registrasi berhasil", "data" => ["nama" => $nama, "username" => $user]]);
+            $inserted_id = $conn->insert_id;
+            echo json_encode(["status" => "success", "message" => "Registrasi berhasil", "data" => ["id" => $inserted_id, "nama" => $nama, "username" => $user]]);
         } else {
             echo json_encode(["status" => "error", "message" => "Gagal registrasi"]);
         }

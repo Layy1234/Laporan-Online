@@ -360,6 +360,9 @@ class _WelcomePageState extends State<WelcomePage> {
       final data = jsonDecode(response.body);
       if (data['status'] == 'success') {
         final prefs = await SharedPreferences.getInstance();
+        if (data['data']['id'] != null) {
+          await prefs.setString('userId', data['data']['id'].toString());
+        }
         await prefs.setString('userName', data['data']['nama'] ?? name);
         await prefs.setString('username', data['data']['username'] ?? username);
         if (mounted) {
@@ -592,9 +595,13 @@ class _DataFormPageState extends State<DataFormPage> {
 
     final prefs = await SharedPreferences.getInstance();
     final reporterName = prefs.getString('userName') ?? 'Tanpa Nama';
+    final userId = prefs.getString('userId');
 
     try {
       var request = http.MultipartRequest('POST', Uri.parse(apiUrl));
+      if (userId != null) {
+        request.fields['user_id'] = userId;
+      }
       if (data['id'] != null) {
         request.fields['id'] = data['id'].toString();
       }
@@ -993,7 +1000,10 @@ class _HistoryPageState extends State<HistoryPage> {
   Future<void> _syncFromServer() async {
     setState(() => _isSyncing = true);
     try {
-      final response = await http.get(Uri.parse(apiUrl));
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getString('userId');
+      final url = userId != null ? '$apiUrl?user_id=$userId' : apiUrl;
+      final response = await http.get(Uri.parse(url));
       if (response.statusCode == 200) {
         final resData = jsonDecode(response.body);
         if (resData["status"] == "success") {

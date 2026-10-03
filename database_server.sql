@@ -26,6 +26,7 @@ SET time_zone = "+00:00";
 DROP TABLE IF EXISTS `stores`;
 CREATE TABLE `stores` (
   `id` int(11) NOT NULL,
+  `user_id` int(11) DEFAULT NULL,
   `storeName` varchar(255) NOT NULL,
   `ownerName` varchar(255) NOT NULL,
   `picName` varchar(255) NOT NULL,

@@ -88,15 +88,19 @@ Future<void> generateAndPrintPdf(BuildContext context, List<Map<String, dynamic>
     }
     for (String path in imagePaths) {
       if (!preloadedImages.containsKey(path)) {
-        final imageFile = File(path);
-        if (imageFile.existsSync()) {
-          try {
-            preloadedImages[path] = await flutterImageProvider(
-              ResizeImage(FileImage(imageFile), width: 800),
-            );
-          } catch (e) {
-            print("Error loading image $path: $e");
+        try {
+          if (path.startsWith('http')) {
+            preloadedImages[path] = await networkImage(path);
+          } else {
+            final imageFile = File(path);
+            if (imageFile.existsSync()) {
+              preloadedImages[path] = await flutterImageProvider(
+                ResizeImage(FileImage(imageFile), width: 800),
+              );
+            }
           }
+        } catch (e) {
+          print("Error loading image $path: $e");
         }
       }
     }

@@ -665,15 +665,15 @@ class _DataFormPageState extends State<DataFormPage> {
                           const SizedBox(height: 8),
                           Row(
                             children: [
-                              Expanded(child: TextFormField(controller: _volxCtrl, decoration: const InputDecoration(labelText: 'Liquid VOLX'))),
+                              Expanded(child: TextFormField(controller: _volxCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Liquid VOLX'))),
                               const SizedBox(width: 12),
-                              Expanded(child: TextFormField(controller: _takisCtrl, decoration: const InputDecoration(labelText: 'Liquid TAKIS'))),
+                              Expanded(child: TextFormField(controller: _takisCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Liquid TAKIS'))),
                             ],
                           ),
                           const SizedBox(height: 12),
                           Row(
                             children: [
-                              Expanded(child: TextFormField(controller: _tribeCtrl, decoration: const InputDecoration(labelText: 'Liquid TRIBE'))),
+                              Expanded(child: TextFormField(controller: _tribeCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Liquid TRIBE'))),
                               const SizedBox(width: 12),
                               const Spacer(),
                             ],
@@ -689,15 +689,15 @@ class _DataFormPageState extends State<DataFormPage> {
                           const SizedBox(height: 8),
                           Row(
                             children: [
-                              Expanded(child: TextFormField(controller: _podVolxCtrl, decoration: const InputDecoration(labelText: 'Pod VOLX'))),
+                              Expanded(child: TextFormField(controller: _podVolxCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Pod VOLX'))),
                               const SizedBox(width: 12),
-                              Expanded(child: TextFormField(controller: _podTakisCtrl, decoration: const InputDecoration(labelText: 'Pod TAKIS'))),
+                              Expanded(child: TextFormField(controller: _podTakisCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Pod TAKIS'))),
                             ],
                           ),
                           const SizedBox(height: 12),
                           Row(
                             children: [
-                              Expanded(child: TextFormField(controller: _podTribeCtrl, decoration: const InputDecoration(labelText: 'Pod TRIBE'))),
+                              Expanded(child: TextFormField(controller: _podTribeCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Pod TRIBE'))),
                               const SizedBox(width: 12),
                               const Spacer(),
                             ],
@@ -713,7 +713,7 @@ class _DataFormPageState extends State<DataFormPage> {
                           const SizedBox(height: 8),
                           Row(
                             children: [
-                              Expanded(child: TextFormField(controller: _ctCtrl, decoration: const InputDecoration(labelText: 'CT'))),
+                              Expanded(child: TextFormField(controller: _ctCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'CT'))),
                             ],
                           ),
                         ],

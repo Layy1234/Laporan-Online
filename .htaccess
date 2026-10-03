@@ -1,0 +1,15 @@
+<IfModule mod_headers.c>
+    # Mengizinkan akses dari aplikasi (CORS)
+    Header set Access-Control-Allow-Origin "*"
+    Header set Access-Control-Allow-Methods "GET, POST, OPTIONS, PUT, DELETE"
+    Header set Access-Control-Allow-Headers "Content-Type, Authorization"
+</IfModule>
+
+# Mengamankan folder agar list file tidak bisa dilihat (Directory Listing dilarang)
+Options -Indexes
+
+# Membesarkan limit upload PHP agar pengiriman banyak gambar dari Flutter tidak gagal
+php_value upload_max_filesize 50M
+php_value post_max_size 50M
+php_value max_execution_time 300
+php_value max_input_time 300

@@ -19,7 +19,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path, 
-      version: 3, 
+      version: 5, 
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -36,10 +36,15 @@ CREATE TABLE stores (
   volx TEXT,
   takis TEXT,
   tribe TEXT,
+  pod_volx TEXT,
+  pod_takis TEXT,
+  pod_tribe TEXT,
   ct TEXT,
+  pod TEXT,
   inside TEXT,
   imagePath TEXT,
-  imagePaths TEXT
+  imagePaths TEXT,
+  createdAt TEXT
 )
 ''');
   }
@@ -51,11 +56,34 @@ CREATE TABLE stores (
     if (oldVersion < 3) {
       await db.execute('ALTER TABLE stores ADD COLUMN imagePaths TEXT');
     }
+    if (oldVersion < 4) {
+      await db.execute('ALTER TABLE stores ADD COLUMN pod TEXT');
+      await db.execute('ALTER TABLE stores ADD COLUMN createdAt TEXT');
+    }
+    if (oldVersion < 5) {
+      await db.execute('ALTER TABLE stores ADD COLUMN pod_volx TEXT');
+      await db.execute('ALTER TABLE stores ADD COLUMN pod_takis TEXT');
+      await db.execute('ALTER TABLE stores ADD COLUMN pod_tribe TEXT');
+    }
   }
 
   Future<int> insertStore(Map<String, dynamic> row) async {
     final db = await instance.database;
+    if (!row.containsKey('createdAt') || row['createdAt'] == null) {
+      row['createdAt'] = DateTime.now().toIso8601String();
+    }
     return await db.insert('stores', row);
+  }
+
+  Future<int> updateStore(Map<String, dynamic> row) async {
+    final db = await instance.database;
+    int id = row['id'];
+    return await db.update(
+      'stores',
+      row,
+      where: 'id = ?',
+      whereArgs: [id],
+    );
   }
 
   Future<List<Map<String, dynamic>>> getAllStores() async {

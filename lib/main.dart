@@ -6,15 +6,55 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 import 'database_helper.dart';
 
-void main() {
+// GANTI LINK INI DENGAN LINK HOSTING ANDA NANTINYA
+const String apiUrl = 'https://laporantva.my.id/api/api.php';
+
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await _cleanOldData();
+  } catch (e) {
+    print('Error cleaning old data: $e');
+  }
   runApp(const MyApp());
+}
+
+Future<void> _cleanOldData() async {
+  final stores = await DatabaseHelper.instance.getAllStores();
+  final now = DateTime.now();
+  for (var store in stores) {
+    if (store['createdAt'] != null) {
+      final createdAt = DateTime.tryParse(store['createdAt']);
+      if (createdAt != null) {
+        final diff = now.difference(createdAt).inDays;
+        if (diff >= 30) {
+          await DatabaseHelper.instance.deleteStore(store['id']);
+          List<String> imagePaths = [];
+          if (store['imagePaths'] != null && store['imagePaths'].toString().isNotEmpty) {
+            try { imagePaths = List<String>.from(jsonDecode(store['imagePaths'])); } catch (e) {}
+          } else if (store['imagePath'] != null && store['imagePath'].toString().isNotEmpty) {
+            imagePaths = [store['imagePath']];
+          }
+          for (String path in imagePaths) {
+            try {
+              final file = File(path);
+              if (file.existsSync()) file.deleteSync();
+            } catch (e) {}
+          }
+        }
+      }
+    }
+  }
 }
 
 Future<void> generateAndPrintPdf(List<Map<String, dynamic>> dataList) async {
   final pdf = pw.Document();
+  final prefs = await SharedPreferences.getInstance();
+  final userName = prefs.getString('userName') ?? 'Tidak Ada Nama';
 
   pdf.addPage(
     pw.MultiPage(
@@ -28,7 +68,7 @@ Future<void> generateAndPrintPdf(List<Map<String, dynamic>> dataList) async {
           List<pw.MemoryImage> pdfImages = [];
           List<String> imagePaths = [];
           if (data['imagePaths'] != null && data['imagePaths'].toString().isNotEmpty) {
-            imagePaths = List<String>.from(jsonDecode(data['imagePaths']));
+            try { imagePaths = List<String>.from(jsonDecode(data['imagePaths'])); } catch(e){}
           } else if (data['imagePath'] != null && data['imagePath'].toString().isNotEmpty) {
             imagePaths = [data['imagePath']];
           }
@@ -40,7 +80,6 @@ Future<void> generateAndPrintPdf(List<Map<String, dynamic>> dataList) async {
             }
           }
 
-          // HEADER
           elements.add(
             pw.Header(
               level: 0,
@@ -57,21 +96,17 @@ Future<void> generateAndPrintPdf(List<Map<String, dynamic>> dataList) async {
             ),
           );
           
-          // NAMA DI BAWAH GARIS HEADER
+          // NAMA SESUAI YANG INPUT
           elements.add(pw.Container(
             alignment: pw.Alignment.centerLeft,
             margin: const pw.EdgeInsets.only(bottom: 16),
-            child: pw.Text('Dilaporkan oleh: Moh Tegar Huda Putra', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.black)),
+            child: pw.Text('Dilaporkan oleh: $userName', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.black)),
           ));
 
-          // DATA TOKO
           elements.add(
             pw.Container(
               padding: const pw.EdgeInsets.all(12),
-              decoration: pw.BoxDecoration(
-                color: PdfColors.grey100,
-                borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
-              ),
+              decoration: pw.BoxDecoration(color: PdfColors.grey100, borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8))),
               child: pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
@@ -103,50 +138,56 @@ Future<void> generateAndPrintPdf(List<Map<String, dynamic>> dataList) async {
           );
           elements.add(pw.SizedBox(height: 12));
 
-          // DATA INVENTORY
+          // DATA INVENTORY PDF (LIQUID & POD, LALU CT)
           elements.add(
             pw.Container(
               padding: const pw.EdgeInsets.all(12),
-              decoration: pw.BoxDecoration(
-                color: PdfColors.orange50,
-                borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
-              ),
+              decoration: pw.BoxDecoration(color: PdfColors.orange50, borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8))),
               child: pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
                   pw.Text('Data Produk / Inventory', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
                   pw.Divider(color: PdfColors.orange200),
                   pw.SizedBox(height: 4),
-                  pw.Row(
-                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                    children: [
-                      pw.Text('VOLX: ${data['volx'] ?? '-'}', style: pw.TextStyle(fontSize: 12)),
-                      pw.Text('TAKIS: ${data['takis'] ?? '-'}', style: pw.TextStyle(fontSize: 12)),
-                    ],
-                  ),
+                  pw.Text('Liquid', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: PdfColors.orange800)),
                   pw.SizedBox(height: 2),
                   pw.Row(
                     mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                     children: [
-                      pw.Text('TRIBE: ${data['tribe'] ?? '-'}', style: pw.TextStyle(fontSize: 12)),
-                      pw.Text('CT: ${data['ct'] ?? '-'}', style: pw.TextStyle(fontSize: 12)),
+                      pw.Text('Liquid VOLX: ${data['volx'] != null && data['volx'].toString().isNotEmpty ? data['volx'] : '-'}', style: pw.TextStyle(fontSize: 12)),
+                      pw.Text('Liquid TAKIS: ${data['takis'] != null && data['takis'].toString().isNotEmpty ? data['takis'] : '-'}', style: pw.TextStyle(fontSize: 12)),
+                      pw.Text('Liquid TRIBE: ${data['tribe'] != null && data['tribe'].toString().isNotEmpty ? data['tribe'] : '-'}', style: pw.TextStyle(fontSize: 12)),
                     ],
-                  )
+                  ),
+                  pw.SizedBox(height: 8),
+                  
+                  pw.Text('Pod', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: PdfColors.orange800)),
+                  pw.SizedBox(height: 2),
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text('Pod VOLX: ${data['pod_volx'] != null && data['pod_volx'].toString().isNotEmpty ? data['pod_volx'] : '-'}', style: pw.TextStyle(fontSize: 12)),
+                      pw.Text('Pod TAKIS: ${data['pod_takis'] != null && data['pod_takis'].toString().isNotEmpty ? data['pod_takis'] : '-'}', style: pw.TextStyle(fontSize: 12)),
+                      pw.Text('Pod TRIBE: ${data['pod_tribe'] != null && data['pod_tribe'].toString().isNotEmpty ? data['pod_tribe'] : '-'}', style: pw.TextStyle(fontSize: 12)),
+                    ],
+                  ),
+                  pw.SizedBox(height: 8),
+                  pw.Divider(color: PdfColors.orange200),
+                  pw.SizedBox(height: 4),
+                  
+                  // CT Paling Bawah
+                  pw.Text('CT: ${data['ct'] != null && data['ct'].toString().isNotEmpty ? data['ct'] : '-'}', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
                 ],
               ),
             )
           );
           elements.add(pw.SizedBox(height: 12));
 
-          // RINGKASAN
           elements.add(
             pw.Container(
               padding: const pw.EdgeInsets.all(12),
               width: double.infinity,
-              decoration: pw.BoxDecoration(
-                border: pw.Border.all(color: PdfColors.grey300),
-                borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
-              ),
+              decoration: pw.BoxDecoration(border: pw.Border.all(color: PdfColors.grey300), borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8))),
               child: pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
@@ -160,7 +201,6 @@ Future<void> generateAndPrintPdf(List<Map<String, dynamic>> dataList) async {
           );
           elements.add(pw.SizedBox(height: 16));
 
-          // FOTO DI BAWAH INSIDE
           if (pdfImages.isNotEmpty) {
             elements.add(pw.Text('Lampiran Foto', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)));
             elements.add(pw.SizedBox(height: 8));
@@ -171,15 +211,8 @@ Future<void> generateAndPrintPdf(List<Map<String, dynamic>> dataList) async {
                 children: pdfImages.map((img) => pw.Container(
                   height: 150,
                   width: 150,
-                  decoration: pw.BoxDecoration(
-                    border: pw.Border.all(color: PdfColors.grey400, width: 2),
-                    borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
-                  ),
-                  child: pw.ClipRRect(
-                    horizontalRadius: 6,
-                    verticalRadius: 6,
-                    child: pw.Image(img, fit: pw.BoxFit.cover),
-                  ),
+                  decoration: pw.BoxDecoration(border: pw.Border.all(color: PdfColors.grey400, width: 2), borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8))),
+                  child: pw.ClipRRect(horizontalRadius: 6, verticalRadius: 6, child: pw.Image(img, fit: pw.BoxFit.cover)),
                 )).toList(),
               )
             );
@@ -198,7 +231,8 @@ Future<void> generateAndPrintPdf(List<Map<String, dynamic>> dataList) async {
 
   final now = DateTime.now();
   final dateStr = '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
-  final title = 'LAPORAN_${dateStr}_Moh_Tegar_Huda_putra';
+  final userNameSanitized = userName.replaceAll(' ', '_');
+  final title = 'LAPORAN_${dateStr}_$userNameSanitized';
   
   await Printing.layoutPdf(
     name: '$title.pdf',
@@ -213,46 +247,113 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'TVA App',
-      debugShowCheckedModeBanner: false, // Menghilangkan banner debug
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.deepOrange,
-          primary: Colors.deepOrange,
-          secondary: Colors.orange,
-        ),
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepOrange, primary: Colors.deepOrange, secondary: Colors.orange),
         useMaterial3: true,
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
           fillColor: Colors.orange.shade50,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.orange.shade200),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.orange.shade200),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Colors.deepOrange, width: 2),
-          ),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.orange.shade200)),
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.orange.shade200)),
+          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.deepOrange, width: 2)),
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            elevation: 0,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            padding: const EdgeInsets.symmetric(vertical: 16),
-          ),
+          style: ElevatedButton.styleFrom(elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(vertical: 16)),
         ),
       ),
-      home: const DataFormPage(),
+      home: const SplashScreen(),
+    );
+  }
+}
+
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _checkUserName();
+  }
+
+  Future<void> _checkUserName() async {
+    final prefs = await SharedPreferences.getInstance();
+    final name = prefs.getString('userName');
+    if (name == null || name.isEmpty) {
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const WelcomePage()));
+    } else {
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DataFormPage()));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(body: Center(child: CircularProgressIndicator()));
+  }
+}
+
+class WelcomePage extends StatefulWidget {
+  const WelcomePage({super.key});
+  @override
+  State<WelcomePage> createState() => _WelcomePageState();
+}
+
+class _WelcomePageState extends State<WelcomePage> {
+  final _nameCtrl = TextEditingController();
+
+  void _saveName() async {
+    if (_nameCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nama tidak boleh kosong')));
+      return;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('userName', _nameCtrl.text.trim());
+    if (mounted) {
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DataFormPage()));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Icon(Icons.account_circle, size: 80, color: Colors.deepOrange),
+            const SizedBox(height: 24),
+            const Text('Selamat Datang!', textAlign: TextAlign.center, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            const Text('Silakan masukkan nama Anda. Nama ini akan otomatis dikirimkan ke Laporan Server agar tidak tertukar.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+            const SizedBox(height: 32),
+            TextField(
+              controller: _nameCtrl,
+              decoration: const InputDecoration(labelText: 'Nama Lengkap', prefixIcon: Icon(Icons.person)),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: _saveName,
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.deepOrange, foregroundColor: Colors.white),
+              child: const Text('Mulai Aplikasi', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
 
 class DataFormPage extends StatefulWidget {
-  const DataFormPage({super.key});
+  final Map<String, dynamic>? storeData;
+  const DataFormPage({super.key, this.storeData});
 
   @override
   State<DataFormPage> createState() => _DataFormPageState();
@@ -265,29 +366,63 @@ class _DataFormPageState extends State<DataFormPage> {
   final TextEditingController _ownerNameCtrl = TextEditingController();
   final TextEditingController _picNameCtrl = TextEditingController();
   final TextEditingController _addressCtrl = TextEditingController();
-  final TextEditingController _volxCtrl = TextEditingController();
-  final TextEditingController _takisCtrl = TextEditingController();
-  final TextEditingController _tribeCtrl = TextEditingController();
+  
+  final TextEditingController _volxCtrl = TextEditingController(); // Liquid Volx
+  final TextEditingController _takisCtrl = TextEditingController(); // Liquid Takis
+  final TextEditingController _tribeCtrl = TextEditingController(); // Liquid Tribe
+  
+  final TextEditingController _podVolxCtrl = TextEditingController();
+  final TextEditingController _podTakisCtrl = TextEditingController();
+  final TextEditingController _podTribeCtrl = TextEditingController();
+  
   final TextEditingController _ctCtrl = TextEditingController();
   final TextEditingController _insideCtrl = TextEditingController();
 
   List<File> _images = [];
   final ImagePicker _picker = ImagePicker();
+  bool _isLoading = false;
+  
+  @override
+  void initState() {
+    super.initState();
+    if (widget.storeData != null) {
+      _storeNameCtrl.text = widget.storeData!['storeName'] ?? '';
+      _ownerNameCtrl.text = widget.storeData!['ownerName'] ?? '';
+      _picNameCtrl.text = widget.storeData!['picName'] ?? '';
+      _addressCtrl.text = widget.storeData!['address'] ?? '';
+      
+      _volxCtrl.text = widget.storeData!['volx'] ?? '';
+      _takisCtrl.text = widget.storeData!['takis'] ?? '';
+      _tribeCtrl.text = widget.storeData!['tribe'] ?? '';
+      
+      _podVolxCtrl.text = widget.storeData!['pod_volx'] ?? '';
+      _podTakisCtrl.text = widget.storeData!['pod_takis'] ?? '';
+      _podTribeCtrl.text = widget.storeData!['pod_tribe'] ?? '';
+      
+      _ctCtrl.text = widget.storeData!['ct'] ?? '';
+      _insideCtrl.text = widget.storeData!['inside'] ?? '';
+      
+      List<String> imagePaths = [];
+      if (widget.storeData!['imagePaths'] != null && widget.storeData!['imagePaths'].toString().isNotEmpty) {
+        try { imagePaths = List<String>.from(jsonDecode(widget.storeData!['imagePaths'])); } catch(e){}
+      }
+      for (String p in imagePaths) {
+        final f = File(p);
+        if (f.existsSync()) _images.add(f);
+      }
+    }
+  }
 
   Future<void> _pickImage(ImageSource source) async {
     if (source == ImageSource.gallery) {
       final List<XFile> pickedFiles = await _picker.pickMultiImage();
       if (pickedFiles.isNotEmpty) {
-        setState(() {
-          _images.addAll(pickedFiles.map((e) => File(e.path)));
-        });
+        setState(() { _images.addAll(pickedFiles.map((e) => File(e.path))); });
       }
     } else {
       final XFile? pickedFile = await _picker.pickImage(source: source);
       if (pickedFile != null) {
-        setState(() {
-          _images.add(File(pickedFile.path));
-        });
+        setState(() { _images.add(File(pickedFile.path)); });
       }
     }
   }
@@ -296,9 +431,13 @@ class _DataFormPageState extends State<DataFormPage> {
     List<String> savedPaths = [];
     final dir = await getApplicationDocumentsDirectory();
     for (File img in _images) {
-      final fileName = DateTime.now().millisecondsSinceEpoch.toString() + '_' + img.path.split('/').last;
-      final savedImage = await img.copy('${dir.path}/$fileName');
-      savedPaths.add(savedImage.path);
+      if (img.path.contains(dir.path)) {
+        savedPaths.add(img.path);
+      } else {
+        final fileName = DateTime.now().millisecondsSinceEpoch.toString() + '_' + img.path.split('/').last;
+        final savedImage = await img.copy('${dir.path}/$fileName');
+        savedPaths.add(savedImage.path);
+      }
     }
 
     return {
@@ -309,6 +448,9 @@ class _DataFormPageState extends State<DataFormPage> {
       'volx': _volxCtrl.text,
       'takis': _takisCtrl.text,
       'tribe': _tribeCtrl.text,
+      'pod_volx': _podVolxCtrl.text,
+      'pod_takis': _podTakisCtrl.text,
+      'pod_tribe': _podTribeCtrl.text,
       'ct': _ctCtrl.text,
       'inside': _insideCtrl.text,
       'imagePaths': jsonEncode(savedPaths),
@@ -324,51 +466,103 @@ class _DataFormPageState extends State<DataFormPage> {
     _volxCtrl.clear();
     _takisCtrl.clear();
     _tribeCtrl.clear();
+    _podVolxCtrl.clear();
+    _podTakisCtrl.clear();
+    _podTribeCtrl.clear();
     _ctCtrl.clear();
     _insideCtrl.clear();
-    setState(() {
-      _images.clear();
-    });
+    setState(() { _images.clear(); });
   }
 
-  Future<void> _saveOnly() async {
-    if (!_formKey.currentState!.validate()) return;
-    
-    final data = await _getFormDataAsync();
-    await DatabaseHelper.instance.insertStore(data);
-    
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✅ Data berhasil disimpan ke Riwayat!'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      _clearForm();
+  Future<void> _uploadToServer(Map<String, dynamic> data) async {
+    if (apiUrl.contains('NAMA_WEBSITE_ANDA.com')) {
+      print('API URL belum diubah, skip upload ke server.');
+      return;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final reporterName = prefs.getString('userName') ?? 'Tanpa Nama';
+
+    try {
+      var request = http.MultipartRequest('POST', Uri.parse(apiUrl));
+      request.fields['storeName'] = data['storeName'] ?? '';
+      request.fields['ownerName'] = data['ownerName'] ?? '';
+      request.fields['picName'] = data['picName'] ?? '';
+      request.fields['address'] = data['address'] ?? '';
+      request.fields['volx'] = data['volx'] ?? '';
+      request.fields['takis'] = data['takis'] ?? '';
+      request.fields['tribe'] = data['tribe'] ?? '';
+      request.fields['pod_volx'] = data['pod_volx'] ?? '';
+      request.fields['pod_takis'] = data['pod_takis'] ?? '';
+      request.fields['pod_tribe'] = data['pod_tribe'] ?? '';
+      request.fields['ct'] = data['ct'] ?? '';
+      request.fields['inside'] = data['inside'] ?? '';
+      request.fields['reporterName'] = reporterName; 
+
+      for (File img in _images) {
+        request.files.add(await http.MultipartFile.fromPath('images[]', img.path));
+      }
+
+      var response = await request.send();
+      if (response.statusCode == 200) {
+        print('Upload ke server berhasil');
+      } else {
+        print('Gagal upload ke server: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error upload server: $e');
     }
   }
 
-  Future<void> _saveAndGeneratePdf() async {
+  Future<void> _processSave({required bool printPdf}) async {
     if (!_formKey.currentState!.validate()) return;
     
-    // 1. Ambil data
+    setState(() => _isLoading = true);
+
     final data = await _getFormDataAsync();
+    if (widget.storeData != null) {
+      data['id'] = widget.storeData!['id'];
+      await DatabaseHelper.instance.updateStore(data);
+    } else {
+      await DatabaseHelper.instance.insertStore(data);
+    }
+
+    await _uploadToServer(data);
     
-    // 2. Simpan ke database
-    await DatabaseHelper.instance.insertStore(data);
-    
+    setState(() => _isLoading = false);
+
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✅ Data otomatis tersimpan. Membuka PDF...'),
+        SnackBar(
+          content: Text(printPdf ? '✅ Tersimpan ke Lokal & Server. Membuka PDF...' : '✅ Data berhasil disimpan ke Lokal & Server!'),
           behavior: SnackBarBehavior.floating,
         ),
       );
-      _clearForm();
+      if (widget.storeData != null) {
+        Navigator.pop(context, true);
+      } else {
+        _clearForm();
+      }
     }
 
-    // 3. Tampilkan PDF (Data menggunakan variabel 'data' yang belum di-clear)
-    await generateAndPrintPdf([data]);
+    if (printPdf) {
+      await generateAndPrintPdf([data]);
+    }
+  }
+
+  void _showImagePreview(File img) {
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Stack(
+          children: [
+            InteractiveViewer(child: Image.file(img, fit: BoxFit.contain)),
+            Positioned(top: 10, right: 10, child: IconButton(icon: const Icon(Icons.close, color: Colors.white, size: 30), onPressed: () => Navigator.pop(context)))
+          ],
+        )
+      )
+    );
   }
 
   Widget _buildSectionTitle(String title, IconData icon) {
@@ -378,14 +572,7 @@ class _DataFormPageState extends State<DataFormPage> {
         children: [
           Icon(icon, color: Theme.of(context).colorScheme.primary, size: 20),
           const SizedBox(width: 8),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-          ),
+          Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary)),
         ],
       ),
     );
@@ -396,256 +583,217 @@ class _DataFormPageState extends State<DataFormPage> {
     return Scaffold(
       backgroundColor: Colors.grey.shade100,
       appBar: AppBar(
-        title: const Text('Laporan Visit', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(widget.storeData != null ? 'Edit Laporan' : 'Laporan Visit', style: const TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
         backgroundColor: Colors.white,
         foregroundColor: Colors.black87,
         elevation: 0,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.history_edu, color: Colors.deepOrange),
-            tooltip: 'Riwayat Laporan',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const HistoryPage()),
-              );
-            },
-          )
+          if (widget.storeData == null)
+            IconButton(
+              icon: const Icon(Icons.history_edu, color: Colors.deepOrange),
+              tooltip: 'Riwayat Laporan',
+              onPressed: () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const HistoryPage()));
+              },
+            )
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // CARD 1: INFORMASI TOKO
-              Card(
-                elevation: 0,
-                color: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                child: Padding(
-                  padding: const EdgeInsets.all(20.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildSectionTitle('Informasi Toko', Icons.storefront),
-                      TextFormField(
-                        controller: _storeNameCtrl,
-                        decoration: const InputDecoration(labelText: 'Nama Vape Store *', prefixIcon: Icon(Icons.store)),
-                        validator: (value) => value!.isEmpty ? 'Nama toko harus diisi' : null,
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            padding: const EdgeInsets.all(16.0),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Card(
+                    elevation: 0, color: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    child: Padding(
+                      padding: const EdgeInsets.all(20.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: TextFormField(
-                              controller: _ownerNameCtrl,
-                              decoration: const InputDecoration(labelText: 'Nama Owner *', prefixIcon: Icon(Icons.person)),
-                              validator: (value) => value!.isEmpty ? 'Wajib diisi' : null,
-                            ),
+                          _buildSectionTitle('Informasi Toko', Icons.storefront),
+                          TextFormField(
+                            controller: _storeNameCtrl, decoration: const InputDecoration(labelText: 'Nama Vape Store *', prefixIcon: Icon(Icons.store)),
+                            validator: (value) => value!.isEmpty ? 'Nama toko harus diisi' : null,
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: TextFormField(
-                              controller: _picNameCtrl,
-                              decoration: const InputDecoration(labelText: 'Nama PIC *', prefixIcon: Icon(Icons.badge)),
-                              validator: (value) => value!.isEmpty ? 'Wajib diisi' : null,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _addressCtrl,
-                        decoration: const InputDecoration(labelText: 'Alamat Toko Lengkap *', prefixIcon: Icon(Icons.location_on)),
-                        maxLines: 2,
-                        validator: (value) => value!.isEmpty ? 'Alamat harus diisi' : null,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // CARD 2: DATA INVENTORY
-              Card(
-                elevation: 0,
-                color: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                child: Padding(
-                  padding: const EdgeInsets.all(20.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildSectionTitle('Data Inventory / Status', Icons.inventory),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextFormField(
-                              controller: _volxCtrl,
-                              decoration: const InputDecoration(labelText: 'VOLX'),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: TextFormField(
-                              controller: _takisCtrl,
-                              decoration: const InputDecoration(labelText: 'TAKIS'),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextFormField(
-                              controller: _tribeCtrl,
-                              decoration: const InputDecoration(labelText: 'TRIBE'),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: TextFormField(
-                              controller: _ctCtrl,
-                              decoration: const InputDecoration(labelText: 'CT'),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // CARD 3: INSIDE & FOTO
-              Card(
-                elevation: 0,
-                color: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                child: Padding(
-                  padding: const EdgeInsets.all(20.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildSectionTitle('Inside & Dokumentasi', Icons.analytics),
-                      TextFormField(
-                        controller: _insideCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'Ringkasan / Apa yang didapat (Inside)',
-                          alignLabelWithHint: true,
-                        ),
-                        maxLines: 4,
-                      ),
-                      const SizedBox(height: 20),
-                      
-                      Text('Foto Dokumentasi (Bisa lebih dari 1)', style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 10),
-                      if (_images.isNotEmpty)
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: _images.map((img) => Stack(
+                          const SizedBox(height: 12),
+                          Row(
                             children: [
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: Image.file(img, height: 120, width: 120, fit: BoxFit.cover),
-                              ),
-                              Positioned(
-                                top: 4,
-                                right: 4,
-                                child: InkWell(
-                                  onTap: () {
-                                    setState(() {
-                                      _images.remove(img);
-                                    });
-                                  },
-                                  child: Container(
-                                    padding: const EdgeInsets.all(4),
-                                    decoration: const BoxDecoration(
-                                      color: Colors.black54,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: const Icon(Icons.close, color: Colors.white, size: 16),
-                                  ),
-                                ),
-                              )
-                            ]
-                          )).toList(),
-                        )
-                      else
-                        Container(
-                          height: 120,
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.grey.shade300, style: BorderStyle.solid),
+                              Expanded(child: TextFormField(controller: _ownerNameCtrl, decoration: const InputDecoration(labelText: 'Nama Owner *', prefixIcon: Icon(Icons.person)), validator: (value) => value!.isEmpty ? 'Wajib diisi' : null)),
+                              const SizedBox(width: 12),
+                              Expanded(child: TextFormField(controller: _picNameCtrl, decoration: const InputDecoration(labelText: 'Nama PIC *', prefixIcon: Icon(Icons.badge)), validator: (value) => value!.isEmpty ? 'Wajib diisi' : null)),
+                            ],
                           ),
-                          child: Center(
-                            child: Icon(Icons.image_not_supported, size: 40, color: Colors.grey.shade400),
-                          ),
-                        ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
-                              icon: const Icon(Icons.camera_alt),
-                              label: const Text('Kamera'),
-                              onPressed: () => _pickImage(ImageSource.camera),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
-                              icon: const Icon(Icons.photo_library),
-                              label: const Text('Galeri'),
-                              onPressed: () => _pickImage(ImageSource.gallery),
-                            ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _addressCtrl, decoration: const InputDecoration(labelText: 'Alamat Toko Lengkap *', prefixIcon: Icon(Icons.location_on)), maxLines: 2,
+                            validator: (value) => value!.isEmpty ? 'Alamat harus diisi' : null,
                           ),
                         ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 16),
+
+                  Card(
+                    elevation: 0, color: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    child: Padding(
+                      padding: const EdgeInsets.all(20.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildSectionTitle('Data Inventory / Status', Icons.inventory),
+                          
+                          // LIQUID
+                          const Text('Liquid', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(child: TextFormField(controller: _volxCtrl, decoration: const InputDecoration(labelText: 'Liquid VOLX'))),
+                              const SizedBox(width: 12),
+                              Expanded(child: TextFormField(controller: _takisCtrl, decoration: const InputDecoration(labelText: 'Liquid TAKIS'))),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(child: TextFormField(controller: _tribeCtrl, decoration: const InputDecoration(labelText: 'Liquid TRIBE'))),
+                              const SizedBox(width: 12),
+                              const Spacer(),
+                            ],
+                          ),
+                          
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 16.0),
+                            child: Divider(),
+                          ),
+
+                          // POD
+                          const Text('Pod', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(child: TextFormField(controller: _podVolxCtrl, decoration: const InputDecoration(labelText: 'Pod VOLX'))),
+                              const SizedBox(width: 12),
+                              Expanded(child: TextFormField(controller: _podTakisCtrl, decoration: const InputDecoration(labelText: 'Pod TAKIS'))),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(child: TextFormField(controller: _podTribeCtrl, decoration: const InputDecoration(labelText: 'Pod TRIBE'))),
+                              const SizedBox(width: 12),
+                              const Spacer(),
+                            ],
+                          ),
+
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 16.0),
+                            child: Divider(),
+                          ),
+                          
+                          // CT (Paling Bawah)
+                          const Text('CT', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(child: TextFormField(controller: _ctCtrl, decoration: const InputDecoration(labelText: 'CT'))),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  Card(
+                    elevation: 0, color: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    child: Padding(
+                      padding: const EdgeInsets.all(20.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildSectionTitle('Inside & Dokumentasi', Icons.analytics),
+                          TextFormField(controller: _insideCtrl, decoration: const InputDecoration(labelText: 'Ringkasan / Apa yang didapat (Inside)', alignLabelWithHint: true), maxLines: 4),
+                          const SizedBox(height: 20),
+                          
+                          Text('Foto Dokumentasi (Bisa lebih dari 1)', style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 10),
+                          if (_images.isNotEmpty)
+                            Wrap(
+                              spacing: 8, runSpacing: 8,
+                              children: _images.map((img) => Stack(
+                                children: [
+                                  GestureDetector(
+                                    onTap: () => _showImagePreview(img),
+                                    child: ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.file(img, height: 120, width: 120, fit: BoxFit.cover)),
+                                  ),
+                                  Positioned(
+                                    top: 4, right: 4,
+                                    child: InkWell(
+                                      onTap: () { setState(() { _images.remove(img); }); },
+                                      child: Container(padding: const EdgeInsets.all(4), decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle), child: const Icon(Icons.close, color: Colors.white, size: 16)),
+                                    ),
+                                  )
+                                ]
+                              )).toList(),
+                            )
+                          else
+                            Container(
+                              height: 120, width: double.infinity,
+                              decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade300, style: BorderStyle.solid)),
+                              child: Center(child: Icon(Icons.image_not_supported, size: 40, color: Colors.grey.shade400)),
+                            ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(child: OutlinedButton.icon(style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))), icon: const Icon(Icons.camera_alt), label: const Text('Kamera'), onPressed: () => _pickImage(ImageSource.camera))),
+                              const SizedBox(width: 12),
+                              Expanded(child: OutlinedButton.icon(style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))), icon: const Icon(Icons.photo_library), label: const Text('Galeri'), onPressed: () => _pickImage(ImageSource.gallery))),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primary, foregroundColor: Colors.white),
+                    icon: const Icon(Icons.picture_as_pdf),
+                    label: const Text('SIMPAN & GENERATE PDF', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    onPressed: _isLoading ? null : () => _processSave(printPdf: true),
+                  ),
+                  const SizedBox(height: 12),
+                  TextButton(
+                    style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
+                    onPressed: _isLoading ? null : () => _processSave(printPdf: false),
+                    child: Text(widget.storeData != null ? 'Update Saja' : 'Simpan ke Riwayat Saja', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                  const SizedBox(height: 20),
+                ],
               ),
-              const SizedBox(height: 24),
-              
-              // BUTTONS
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                  foregroundColor: Colors.white,
-                ),
-                icon: const Icon(Icons.picture_as_pdf),
-                label: const Text('SIMPAN & GENERATE PDF', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                onPressed: _saveAndGeneratePdf,
-              ),
-              const SizedBox(height: 12),
-              TextButton(
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-                onPressed: _saveOnly,
-                child: const Text('Simpan ke Riwayat Saja', style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-              const SizedBox(height: 20),
-            ],
+            ),
           ),
-        ),
+          if (_isLoading)
+            Container(
+              color: Colors.black.withOpacity(0.5),
+              child: const Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(color: Colors.white),
+                    SizedBox(height: 16),
+                    Text('Mengunggah ke Server...', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -653,7 +801,6 @@ class _DataFormPageState extends State<DataFormPage> {
 
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
-
   @override
   State<HistoryPage> createState() => _HistoryPageState();
 }
@@ -679,11 +826,58 @@ class _HistoryPageState extends State<HistoryPage> {
   Future<void> _deleteStore(int id) async {
     await DatabaseHelper.instance.deleteStore(id);
     _refreshStores();
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Data berhasil dihapus')),
-      );
-    }
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Data berhasil dihapus')));
+  }
+
+  void _showReorderDialog() {
+    final selectedData = _stores.where((s) => _selectedIds.contains(s['id'])).toList();
+    List<Map<String, dynamic>> reorderedData = List.from(selectedData);
+    
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateBuilder) {
+            return AlertDialog(
+              title: const Text('Urutkan Laporan'),
+              content: SizedBox(
+                width: double.maxFinite,
+                height: 300,
+                child: ReorderableListView(
+                  onReorder: (oldIndex, newIndex) {
+                    setStateBuilder(() {
+                      if (newIndex > oldIndex) newIndex -= 1;
+                      final item = reorderedData.removeAt(oldIndex);
+                      reorderedData.insert(newIndex, item);
+                    });
+                  },
+                  children: [
+                    for (int i = 0; i < reorderedData.length; i++)
+                      ListTile(
+                        key: ValueKey(reorderedData[i]['id']),
+                        leading: const Icon(Icons.drag_handle),
+                        title: Text(reorderedData[i]['storeName']),
+                        subtitle: Text(reorderedData[i]['ownerName']),
+                      )
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal')),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    generateAndPrintPdf(reorderedData);
+                  },
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.deepOrange, foregroundColor: Colors.white),
+                  child: const Text('Buat PDF'),
+                ),
+              ],
+            );
+          }
+        );
+      }
+    );
   }
 
   @override
@@ -692,24 +886,22 @@ class _HistoryPageState extends State<HistoryPage> {
       backgroundColor: Colors.grey.shade100,
       appBar: AppBar(
         title: const Text('Riwayat Kunjungan', style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
-        elevation: 0,
+        backgroundColor: Colors.white, foregroundColor: Colors.black87, elevation: 0,
         actions: [
           if (_selectedIds.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(right: 8.0),
               child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.deepOrange,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.deepOrange, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
                 icon: const Icon(Icons.picture_as_pdf, size: 18),
                 label: Text('Cetak (${_selectedIds.length})'),
                 onPressed: () {
-                  final selectedData = _stores.where((s) => _selectedIds.contains(s['id'])).toList();
-                  generateAndPrintPdf(selectedData);
+                  if (_selectedIds.length > 1) {
+                    _showReorderDialog();
+                  } else {
+                    final selectedData = _stores.where((s) => _selectedIds.contains(s['id'])).toList();
+                    generateAndPrintPdf(selectedData);
+                  }
                 },
               ),
             ),
@@ -732,11 +924,9 @@ class _HistoryPageState extends State<HistoryPage> {
               itemBuilder: (context, index) {
                 final store = _stores[index];
                 return Card(
-                  elevation: 0,
-                  margin: const EdgeInsets.only(bottom: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 0, margin: const EdgeInsets.only(bottom: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   child: ExpansionTile(
-                    shape: const Border(), // Hilangkan garis saat dibuka
+                    shape: const Border(),
                     leading: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -744,48 +934,34 @@ class _HistoryPageState extends State<HistoryPage> {
                           value: _selectedIds.contains(store['id']),
                           onChanged: (bool? value) {
                             setState(() {
-                              if (value == true) {
-                                _selectedIds.add(store['id']);
-                              } else {
-                                _selectedIds.remove(store['id']);
-                              }
+                              if (value == true) { _selectedIds.add(store['id']); } else { _selectedIds.remove(store['id']); }
                             });
                           },
                         ),
                         if (store['imagePaths'] != null && store['imagePaths'].toString().isNotEmpty)
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.file(File(List<String>.from(jsonDecode(store['imagePaths'])).first), width: 50, height: 50, fit: BoxFit.cover),
-                          )
-                        else if (store['imagePath'] != null && store['imagePath'].toString().isNotEmpty)
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.file(File(store['imagePath']), width: 50, height: 50, fit: BoxFit.cover),
-                          )
+                          ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.file(File(List<String>.from(jsonDecode(store['imagePaths'])).first), width: 50, height: 50, fit: BoxFit.cover))
                         else
-                          CircleAvatar(
-                            backgroundColor: Colors.blue.shade100,
-                            child: const Icon(Icons.store, color: Colors.blue),
-                          ),
+                          CircleAvatar(backgroundColor: Colors.blue.shade100, child: const Icon(Icons.store, color: Colors.blue)),
                       ],
                     ),
                     title: Text(store['storeName'] ?? 'No Name', style: const TextStyle(fontWeight: FontWeight.bold)),
                     subtitle: Text(store['address'] ?? 'No Address', maxLines: 1, overflow: TextOverflow.ellipsis),
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(16.0),
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade50,
-                          borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(12), bottomRight: Radius.circular(12)),
-                        ),
+                        padding: const EdgeInsets.all(16.0), width: double.infinity,
+                        decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(12), bottomRight: Radius.circular(12))),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text('Owner: ${store['ownerName']} | PIC: ${store['picName']}'),
                             const Divider(),
-                            Text('VOLX: ${store['volx']} | TAKIS: ${store['takis']}'),
-                            Text('TRIBE: ${store['tribe']} | CT: ${store['ct']}'),
+                            const Text('Liquid:', style: TextStyle(fontWeight: FontWeight.bold)),
+                            Text('VOLX: ${store['volx']} | TAKIS: ${store['takis']} | TRIBE: ${store['tribe']}'),
+                            const SizedBox(height: 4),
+                            const Text('Pod:', style: TextStyle(fontWeight: FontWeight.bold)),
+                            Text('VOLX: ${store['pod_volx']} | TAKIS: ${store['pod_takis']} | TRIBE: ${store['pod_tribe']}'),
+                            const SizedBox(height: 4),
+                            Text('CT: ${store['ct']}'),
                             const Divider(),
                             const Text('INSIDE:', style: TextStyle(fontWeight: FontWeight.bold)),
                             Text('${store['inside']}', style: const TextStyle(fontStyle: FontStyle.italic)),
@@ -794,60 +970,30 @@ class _HistoryPageState extends State<HistoryPage> {
                               mainAxisAlignment: MainAxisAlignment.end,
                               children: [
                                 TextButton.icon(
-                                  icon: const Icon(Icons.delete_outline, color: Colors.red),
-                                  label: const Text('Hapus', style: TextStyle(color: Colors.red)),
-                                  onPressed: () {
-                                    showDialog(
-                                      context: context,
-                                      builder: (BuildContext ctx) {
-                                        return AlertDialog(
-                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                          title: Row(
-                                            children: const [
-                                              Icon(Icons.warning_amber_rounded, color: Colors.deepOrange, size: 28),
-                                              SizedBox(width: 8),
-                                              Text('Konfirmasi Hapus'),
-                                            ],
-                                          ),
-                                          content: Text(
-                                            'Apakah Anda yakin ingin menghapus data laporan toko "${store['storeName']}" secara permanen?',
-                                            style: const TextStyle(fontSize: 16),
-                                          ),
-                                          actions: [
-                                            TextButton(
-                                              onPressed: () => Navigator.of(ctx).pop(),
-                                              child: const Text('Batal', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
-                                            ),
-                                            ElevatedButton(
-                                              style: ElevatedButton.styleFrom(
-                                                backgroundColor: Colors.red.shade600,
-                                                foregroundColor: Colors.white,
-                                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                              ),
-                                              onPressed: () {
-                                                Navigator.of(ctx).pop();
-                                                _deleteStore(store['id']);
-                                              },
-                                              child: const Text('Ya, Hapus', style: TextStyle(fontWeight: FontWeight.bold)),
-                                            ),
-                                          ],
-                                        );
-                                      },
-                                    );
+                                  icon: const Icon(Icons.edit, color: Colors.blue), label: const Text('Edit', style: TextStyle(color: Colors.blue)),
+                                  onPressed: () async {
+                                    final res = await Navigator.push(context, MaterialPageRoute(builder: (_) => DataFormPage(storeData: store)));
+                                    if (res == true) _refreshStores();
                                   },
                                 ),
                                 const SizedBox(width: 8),
-                                ElevatedButton.icon(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.deepOrange,
-                                    foregroundColor: Colors.white,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                  ),
-                                  icon: const Icon(Icons.picture_as_pdf, size: 18),
-                                  label: const Text('Cetak PDF'),
+                                TextButton.icon(
+                                  icon: const Icon(Icons.delete_outline, color: Colors.red), label: const Text('Hapus', style: TextStyle(color: Colors.red)),
                                   onPressed: () {
-                                    generateAndPrintPdf([store]);
+                                    showDialog(
+                                      context: context,
+                                      builder: (ctx) => AlertDialog(
+                                        title: const Text('Hapus Data'),
+                                        content: const Text('Yakin ingin menghapus data ini?'),
+                                        actions: [
+                                          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
+                                          TextButton(
+                                            onPressed: () { Navigator.pop(ctx); _deleteStore(store['id']); },
+                                            child: const Text('Hapus', style: TextStyle(color: Colors.red)),
+                                          ),
+                                        ],
+                                      ),
+                                    );
                                   },
                                 ),
                               ],

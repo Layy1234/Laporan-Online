@@ -1033,7 +1033,6 @@ class _HistoryPageState extends State<HistoryPage> {
               "pod_tribe": store["pod_tribe"] ?? "",
               "ct": store["ct"] ?? "",
               "inside": store["inside"] ?? "",
-              "reporterName": store["reporterName"] ?? "",
               "imagePaths": imagePathsStr,
               "createdAt": store["createdAt"] ?? "",
             };

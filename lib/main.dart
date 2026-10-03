@@ -602,13 +602,74 @@ class _DataFormPageState extends State<DataFormPage> {
         elevation: 0,
         actions: [
           if (widget.storeData == null)
-            IconButton(
-              icon: const Icon(Icons.history_edu, color: Colors.deepOrange),
-              tooltip: 'Riwayat Laporan',
-              onPressed: () {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const HistoryPage()));
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.menu, color: Colors.deepOrange),
+              tooltip: 'Menu',
+              onSelected: (value) async {
+                if (value == 'edit_nama') {
+                  final prefs = await SharedPreferences.getInstance();
+                  final currentName = prefs.getString('userName') ?? '';
+                  final TextEditingController nameCtrl = TextEditingController(text: currentName);
+                  if (mounted) {
+                    showDialog(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: const Text('Edit Nama Pengguna'),
+                        content: TextField(
+                          controller: nameCtrl,
+                          decoration: const InputDecoration(labelText: 'Nama Lengkap'),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: const Text('Batal'),
+                          ),
+                          ElevatedButton(
+                            onPressed: () async {
+                              if (nameCtrl.text.trim().isNotEmpty) {
+                                await prefs.setString('userName', nameCtrl.text.trim());
+                                if (mounted) {
+                                  Navigator.pop(ctx);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Nama berhasil diperbarui')),
+                                  );
+                                }
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.deepOrange, foregroundColor: Colors.white),
+                            child: const Text('Simpan'),
+                          )
+                        ],
+                      ),
+                    );
+                  }
+                } else if (value == 'riwayat') {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const HistoryPage()));
+                }
               },
-            )
+              itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                const PopupMenuItem<String>(
+                  value: 'edit_nama',
+                  child: Row(
+                    children: [
+                      Icon(Icons.person, color: Colors.deepOrange),
+                      SizedBox(width: 8),
+                      Text('Edit Nama'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem<String>(
+                  value: 'riwayat',
+                  child: Row(
+                    children: [
+                      Icon(Icons.history_edu, color: Colors.deepOrange),
+                      SizedBox(width: 8),
+                      Text('Riwayat / Struk'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
         ],
       ),
       body: Stack(

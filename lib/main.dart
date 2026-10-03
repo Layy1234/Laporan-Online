@@ -51,7 +51,13 @@ Future<void> _cleanOldData() async {
   }
 }
 
+bool _isGeneratingPdfGlobal = false;
+
 Future<void> generateAndPrintPdf(BuildContext context, List<Map<String, dynamic>> dataList) async {
+  if (_isGeneratingPdfGlobal) return;
+  _isGeneratingPdfGlobal = true;
+  
+  try {
   showDialog(
     context: context,
     barrierDismissible: false,
@@ -77,34 +83,37 @@ Future<void> generateAndPrintPdf(BuildContext context, List<Map<String, dynamic>
   final prefs = await SharedPreferences.getInstance();
   final userName = prefs.getString('userName') ?? 'Tidak Ada Nama';
 
-  // Preload and resize images asynchronously to speed up PDF generation and reduce memory
-  Map<String, pw.ImageProvider> preloadedImages = {};
+  // Dapatkan semua path unik
+  Set<String> uniquePaths = {};
   for (var data in dataList) {
-    List<String> imagePaths = [];
+    List<String> paths = [];
     if (data['imagePaths'] != null && data['imagePaths'].toString().isNotEmpty) {
-      try { imagePaths = List<String>.from(jsonDecode(data['imagePaths'])); } catch(e){}
+      try { paths = List<String>.from(jsonDecode(data['imagePaths'])); } catch(e){}
     } else if (data['imagePath'] != null && data['imagePath'].toString().isNotEmpty) {
-      imagePaths = [data['imagePath']];
+      paths = [data['imagePath']];
     }
-    for (String path in imagePaths) {
-      if (!preloadedImages.containsKey(path)) {
-        try {
-          if (path.startsWith('http')) {
-            preloadedImages[path] = await networkImage(path);
-          } else {
-            final imageFile = File(path);
-            if (imageFile.existsSync()) {
-              preloadedImages[path] = await flutterImageProvider(
-                ResizeImage(FileImage(imageFile), width: 800),
-              );
-            }
-          }
-        } catch (e) {
-          print("Error loading image $path: $e");
+    uniquePaths.addAll(paths);
+  }
+
+  Map<String, pw.ImageProvider> preloadedImages = {};
+
+  // Memuat semua foto secara bersamaan (paralel) agar tidak lama
+  await Future.wait(uniquePaths.map((path) async {
+    try {
+      if (path.startsWith('http')) {
+        preloadedImages[path] = await networkImage(path);
+      } else {
+        final imageFile = File(path);
+        if (imageFile.existsSync()) {
+          preloadedImages[path] = await flutterImageProvider(
+            ResizeImage(FileImage(imageFile), width: 800),
+          );
         }
       }
+    } catch (e) {
+      print("Error loading image $path: $e");
     }
-  }
+  }));
 
   if (context.mounted) Navigator.pop(context);
 
@@ -310,6 +319,10 @@ Future<void> generateAndPrintPdf(BuildContext context, List<Map<String, dynamic>
     name: '$title.pdf',
     onLayout: (PdfPageFormat format) async => pdf.save(),
   );
+  
+  } finally {
+    _isGeneratingPdfGlobal = false;
+  }
 }
 
 class MyApp extends StatelessWidget {

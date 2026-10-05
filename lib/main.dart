@@ -542,6 +542,7 @@ class _DataFormPageState extends State<DataFormPage> {
   final TextEditingController _storeNameCtrl = TextEditingController();
   final TextEditingController _ownerNameCtrl = TextEditingController();
   final TextEditingController _picNameCtrl = TextEditingController();
+  final TextEditingController _phoneCtrl = TextEditingController();
   final TextEditingController _addressCtrl = TextEditingController();
   
   final TextEditingController _volxCtrl = TextEditingController(); // Liquid Volx
@@ -566,6 +567,7 @@ class _DataFormPageState extends State<DataFormPage> {
       _storeNameCtrl.text = widget.storeData!['storeName'] ?? '';
       _ownerNameCtrl.text = widget.storeData!['ownerName'] ?? '';
       _picNameCtrl.text = widget.storeData!['picName'] ?? '';
+      _phoneCtrl.text = widget.storeData!['phone'] ?? '';
       _addressCtrl.text = widget.storeData!['address'] ?? '';
       
       _volxCtrl.text = widget.storeData!['volx'] ?? '';
@@ -621,6 +623,7 @@ class _DataFormPageState extends State<DataFormPage> {
       'storeName': _storeNameCtrl.text,
       'ownerName': _ownerNameCtrl.text,
       'picName': _picNameCtrl.text,
+      'phone': _phoneCtrl.text,
       'address': _addressCtrl.text,
       'volx': _volxCtrl.text,
       'takis': _takisCtrl.text,
@@ -639,6 +642,7 @@ class _DataFormPageState extends State<DataFormPage> {
     _storeNameCtrl.clear();
     _ownerNameCtrl.clear();
     _picNameCtrl.clear();
+    _phoneCtrl.clear();
     _addressCtrl.clear();
     _volxCtrl.clear();
     _takisCtrl.clear();
@@ -672,6 +676,7 @@ class _DataFormPageState extends State<DataFormPage> {
       request.fields['storeName'] = data['storeName'] ?? '';
       request.fields['ownerName'] = data['ownerName'] ?? '';
       request.fields['picName'] = data['picName'] ?? '';
+      request.fields['phone'] = data['phone'] ?? '';
       request.fields['address'] = data['address'] ?? '';
       request.fields['volx'] = data['volx'] ?? '';
       request.fields['takis'] = data['takis'] ?? '';
@@ -881,6 +886,8 @@ class _DataFormPageState extends State<DataFormPage> {
                               Expanded(child: TextFormField(controller: _picNameCtrl, decoration: const InputDecoration(labelText: 'Nama PIC *', prefixIcon: Icon(Icons.badge)), validator: (value) => value!.isEmpty ? 'Wajib diisi' : null)),
                             ],
                           ),
+                          const SizedBox(height: 12),
+                          TextFormField(controller: _phoneCtrl, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Nomor HP *', prefixIcon: Icon(Icons.phone)), validator: (value) => value!.isEmpty ? 'Wajib diisi' : null),
                           const SizedBox(height: 12),
                           TextFormField(
                             controller: _addressCtrl, decoration: const InputDecoration(labelText: 'Alamat Toko Lengkap *', prefixIcon: Icon(Icons.location_on)), maxLines: 2,
@@ -1128,6 +1135,14 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   Future<void> _deleteStore(int id) async {
+    try {
+      await http.post(
+        Uri.parse(apiUrl),
+        body: {'action': 'delete', 'id': id.toString()},
+      );
+    } catch (e) {
+      print('Gagal hapus dari server: $e');
+    }
     await DatabaseHelper.instance.deleteStore(id);
     _refreshStores();
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Data berhasil dihapus')));

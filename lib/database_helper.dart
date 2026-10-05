@@ -19,7 +19,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path, 
-      version: 5, 
+      version: 6, 
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -32,6 +32,7 @@ CREATE TABLE stores (
   storeName TEXT NOT NULL,
   ownerName TEXT NOT NULL,
   picName TEXT NOT NULL,
+  phone TEXT,
   address TEXT NOT NULL,
   volx TEXT,
   takis TEXT,
@@ -64,6 +65,9 @@ CREATE TABLE stores (
       await db.execute('ALTER TABLE stores ADD COLUMN pod_volx TEXT');
       await db.execute('ALTER TABLE stores ADD COLUMN pod_takis TEXT');
       await db.execute('ALTER TABLE stores ADD COLUMN pod_tribe TEXT');
+    }
+    if (oldVersion < 6) {
+      await db.execute('ALTER TABLE stores ADD COLUMN phone TEXT');
     }
   }
 

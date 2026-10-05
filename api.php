@@ -30,6 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $storeName = $_POST['storeName'] ?? '';
     $ownerName = $_POST['ownerName'] ?? '';
     $picName = $_POST['picName'] ?? '';
+    $phone = $_POST['phone'] ?? '';
     $address = $_POST['address'] ?? '';
     $volx = $_POST['volx'] ?? '';
     $takis = $_POST['takis'] ?? '';
@@ -71,18 +72,31 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     // 3. Simpan data ke Database MySQL
     $id = $_POST['id'] ?? null;
+    $action = $_POST['action'] ?? null;
+    
+    if ($action == 'delete' && $id) {
+        $stmt = $conn->prepare("DELETE FROM stores WHERE id = ?");
+        $stmt->bind_param("i", $id);
+        if ($stmt->execute()) {
+            echo json_encode(["status" => "success", "message" => "Data berhasil dihapus"]);
+        } else {
+            echo json_encode(["status" => "error", "message" => "Gagal menghapus data: " . $stmt->error]);
+        }
+        $stmt->close();
+        exit;
+    }
     
     if ($id) {
         if (!empty($uploadedImages)) {
-            $stmt = $conn->prepare("UPDATE stores SET user_id=?, storeName=?, ownerName=?, picName=?, address=?, volx=?, takis=?, tribe=?, pod_volx=?, pod_takis=?, pod_tribe=?, ct=?, inside=?, reporterName=?, imagePaths=? WHERE id=?");
-            $stmt->bind_param("issssssssssssssi", $user_id, $storeName, $ownerName, $picName, $address, $volx, $takis, $tribe, $pod_volx, $pod_takis, $pod_tribe, $ct, $inside, $reporterName, $imagePathsJson, $id);
+            $stmt = $conn->prepare("UPDATE stores SET user_id=?, storeName=?, ownerName=?, picName=?, phone=?, address=?, volx=?, takis=?, tribe=?, pod_volx=?, pod_takis=?, pod_tribe=?, ct=?, inside=?, reporterName=?, imagePaths=? WHERE id=?");
+            $stmt->bind_param("isssssssssssssssi", $user_id, $storeName, $ownerName, $picName, $phone, $address, $volx, $takis, $tribe, $pod_volx, $pod_takis, $pod_tribe, $ct, $inside, $reporterName, $imagePathsJson, $id);
         } else {
-            $stmt = $conn->prepare("UPDATE stores SET user_id=?, storeName=?, ownerName=?, picName=?, address=?, volx=?, takis=?, tribe=?, pod_volx=?, pod_takis=?, pod_tribe=?, ct=?, inside=?, reporterName=? WHERE id=?");
-            $stmt->bind_param("isssssssssssssi", $user_id, $storeName, $ownerName, $picName, $address, $volx, $takis, $tribe, $pod_volx, $pod_takis, $pod_tribe, $ct, $inside, $reporterName, $id);
+            $stmt = $conn->prepare("UPDATE stores SET user_id=?, storeName=?, ownerName=?, picName=?, phone=?, address=?, volx=?, takis=?, tribe=?, pod_volx=?, pod_takis=?, pod_tribe=?, ct=?, inside=?, reporterName=? WHERE id=?");
+            $stmt->bind_param("isssssssssssssssi", $user_id, $storeName, $ownerName, $picName, $phone, $address, $volx, $takis, $tribe, $pod_volx, $pod_takis, $pod_tribe, $ct, $inside, $reporterName, $id);
         }
     } else {
-        $stmt = $conn->prepare("INSERT INTO stores (user_id, storeName, ownerName, picName, address, volx, takis, tribe, pod_volx, pod_takis, pod_tribe, ct, inside, reporterName, imagePaths, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-        $stmt->bind_param("isssssssssssssss", $user_id, $storeName, $ownerName, $picName, $address, $volx, $takis, $tribe, $pod_volx, $pod_takis, $pod_tribe, $ct, $inside, $reporterName, $imagePathsJson, $createdAt);
+        $stmt = $conn->prepare("INSERT INTO stores (user_id, storeName, ownerName, picName, phone, address, volx, takis, tribe, pod_volx, pod_takis, pod_tribe, ct, inside, reporterName, imagePaths, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("issssssssssssssss", $user_id, $storeName, $ownerName, $picName, $phone, $address, $volx, $takis, $tribe, $pod_volx, $pod_takis, $pod_tribe, $ct, $inside, $reporterName, $imagePathsJson, $createdAt);
     }
 
     if ($stmt->execute()) {

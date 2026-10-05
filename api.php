@@ -118,6 +118,27 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 } else if ($_SERVER['REQUEST_METHOD'] == 'GET') {
     // GET UNTUK MENAMPILKAN DATA
     $user_id = $_GET['user_id'] ?? null;
+    $action = $_GET['action'] ?? null;
+    
+    if ($action == 'search_store') {
+        $storeName = $_GET['storeName'] ?? '';
+        if ($user_id && $storeName) {
+            $stmt = $conn->prepare("SELECT * FROM stores WHERE user_id = ? AND storeName LIKE ? GROUP BY storeName LIMIT 10");
+            $likeStore = "%" . $storeName . "%";
+            $stmt->bind_param("is", $user_id, $likeStore);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $data = [];
+            while($row = $result->fetch_assoc()) {
+                $data[] = $row;
+            }
+            echo json_encode(["status" => "success", "data" => $data]);
+            $stmt->close();
+        } else {
+            echo json_encode(["status" => "error", "message" => "Missing parameters"]);
+        }
+        exit;
+    }
     
     if ($user_id) {
         $stmt = $conn->prepare("SELECT * FROM stores WHERE user_id = ? ORDER BY id DESC");

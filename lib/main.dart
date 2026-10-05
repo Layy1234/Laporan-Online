@@ -555,9 +555,43 @@ class _DataFormPageState extends State<DataFormPage> {
   final ImagePicker _picker = ImagePicker();
   bool _isLoading = false;
   
+  List<Map<String, dynamic>> _localStores = [];
+
+  Future<void> _loadLocalStores() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getString('userId');
+      if (userId != null) {
+        final response = await http.get(Uri.parse('$apiUrl?user_id=$userId'));
+        if (response.statusCode == 200) {
+          final resData = jsonDecode(response.body);
+          if (resData['status'] == 'success') {
+            final List data = resData['data'];
+            if (mounted) {
+              setState(() {
+                _localStores = data.cast<Map<String, dynamic>>();
+              });
+            }
+            return;
+          }
+        }
+      }
+    } catch (e) {
+      print('Fetch error: $e');
+    }
+    // Fallback to local
+    final stores = await DatabaseHelper.instance.getAllStores();
+    if (mounted) {
+      setState(() {
+        _localStores = stores;
+      });
+    }
+  }
+  
   @override
   void initState() {
     super.initState();
+    _loadLocalStores();
     if (widget.storeData != null) {
       _storeNameCtrl.text = widget.storeData!['storeName'] ?? '';
       _ownerNameCtrl.text = widget.storeData!['ownerName'] ?? '';
@@ -869,9 +903,48 @@ class _DataFormPageState extends State<DataFormPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _buildSectionTitle('Informasi Toko', Icons.storefront),
-                          TextFormField(
-                            controller: _storeNameCtrl, decoration: const InputDecoration(labelText: 'Nama Vape Store *', prefixIcon: Icon(Icons.store)),
-                            validator: (value) => value!.isEmpty ? 'Nama toko harus diisi' : null,
+                          Autocomplete<Map<String, dynamic>>(
+                            optionsBuilder: (TextEditingValue textEditingValue) {
+                              if (textEditingValue.text.isEmpty) {
+                                return const Iterable<Map<String, dynamic>>.empty();
+                              }
+                              return _localStores.where((store) {
+                                final name = (store['storeName'] ?? '').toString().toLowerCase();
+                                return name.contains(textEditingValue.text.toLowerCase());
+                              });
+                            },
+                            displayStringForOption: (Map<String, dynamic> option) => option['storeName'] ?? '',
+                            onSelected: (Map<String, dynamic> selection) {
+                              _storeNameCtrl.text = selection['storeName'] ?? '';
+                              _ownerNameCtrl.text = selection['ownerName'] ?? '';
+                              _picNameCtrl.text = selection['picName'] ?? '';
+                              _phoneCtrl.text = selection['phone'] ?? '';
+                              _addressCtrl.text = selection['address'] ?? '';
+                              _volxCtrl.text = selection['volx'] ?? '';
+                              _takisCtrl.text = selection['takis'] ?? '';
+                              _tribeCtrl.text = selection['tribe'] ?? '';
+                              _podVolxCtrl.text = selection['pod_volx'] ?? '';
+                              _podTakisCtrl.text = selection['pod_takis'] ?? '';
+                              _podTribeCtrl.text = selection['pod_tribe'] ?? '';
+                              _ctCtrl.text = selection['ct'] ?? '';
+                              _insideCtrl.text = selection['inside'] ?? '';
+                              // Trigger UI update if needed
+                              setState(() {});
+                            },
+                            fieldViewBuilder: (BuildContext context, TextEditingController fieldTextEditingController, FocusNode fieldFocusNode, VoidCallback onFieldSubmitted) {
+                              if (_storeNameCtrl.text.isNotEmpty && fieldTextEditingController.text.isEmpty) {
+                                fieldTextEditingController.text = _storeNameCtrl.text;
+                              }
+                              fieldTextEditingController.addListener(() {
+                                _storeNameCtrl.text = fieldTextEditingController.text;
+                              });
+                              return TextFormField(
+                                controller: fieldTextEditingController,
+                                focusNode: fieldFocusNode,
+                                decoration: const InputDecoration(labelText: 'Nama Vape Store *', prefixIcon: Icon(Icons.store)),
+                                validator: (value) => value!.isEmpty ? 'Nama toko harus diisi' : null,
+                              );
+                            },
                           ),
                           const SizedBox(height: 12),
                           Row(

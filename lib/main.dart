@@ -411,9 +411,12 @@ class _WelcomePageState extends State<WelcomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: Center(
+          child: SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.all(24.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -449,6 +452,7 @@ class _WelcomePageState extends State<WelcomePage> {
             ],
           ),
         ),
+      ),
       ),
     );
   }
@@ -502,22 +506,22 @@ class _DataFormPageState extends State<DataFormPage> {
     super.initState();
     _loadLocalStores();
     if (widget.storeData != null) {
-      _storeNameCtrl.text = widget.storeData!['storeName'] ?? '';
-      _ownerNameCtrl.text = widget.storeData!['ownerName'] ?? '';
-      _picNameCtrl.text = widget.storeData!['picName'] ?? '';
-      _phoneCtrl.text = widget.storeData!['phone'] ?? '';
-      _addressCtrl.text = widget.storeData!['address'] ?? '';
+      _storeNameCtrl.text = widget.storeData!['storeName']?.toString() ?? '';
+      _ownerNameCtrl.text = widget.storeData!['ownerName']?.toString() ?? '';
+      _picNameCtrl.text = widget.storeData!['picName']?.toString() ?? '';
+      _phoneCtrl.text = widget.storeData!['phone']?.toString() ?? '';
+      _addressCtrl.text = widget.storeData!['address']?.toString() ?? '';
       
-      _volxCtrl.text = widget.storeData!['volx'] ?? '';
-      _takisCtrl.text = widget.storeData!['takis'] ?? '';
-      _tribeCtrl.text = widget.storeData!['tribe'] ?? '';
+      _volxCtrl.text = widget.storeData!['volx']?.toString() ?? '';
+      _takisCtrl.text = widget.storeData!['takis']?.toString() ?? '';
+      _tribeCtrl.text = widget.storeData!['tribe']?.toString() ?? '';
       
-      _podVolxCtrl.text = widget.storeData!['pod_volx'] ?? '';
-      _podTakisCtrl.text = widget.storeData!['pod_takis'] ?? '';
-      _podTribeCtrl.text = widget.storeData!['pod_tribe'] ?? '';
+      _podVolxCtrl.text = widget.storeData!['pod_volx']?.toString() ?? '';
+      _podTakisCtrl.text = widget.storeData!['pod_takis']?.toString() ?? '';
+      _podTribeCtrl.text = widget.storeData!['pod_tribe']?.toString() ?? '';
       
-      _ctCtrl.text = widget.storeData!['ct'] ?? '';
-      _insideCtrl.text = widget.storeData!['inside'] ?? '';
+      _ctCtrl.text = widget.storeData!['ct']?.toString() ?? '';
+      _insideCtrl.text = widget.storeData!['inside']?.toString() ?? '';
       
       List<String> imagePaths = [];
       if (widget.storeData!['imagePaths'] != null && widget.storeData!['imagePaths'].toString().isNotEmpty) {
@@ -594,7 +598,16 @@ class _DataFormPageState extends State<DataFormPage> {
   }
 
   Future<void> _processSave({required bool printPdf}) async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('⚠️ Mohon lengkapi semua field yang wajib diisi (*)!'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
     
     setState(() => _isLoading = true);
 
@@ -745,10 +758,13 @@ class _DataFormPageState extends State<DataFormPage> {
           ],
         ),
       ) : null,
-      body: Stack(
-        children: [
-          SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: Stack(
+          children: [
+            SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: const EdgeInsets.all(16.0),
             child: Form(
               key: _formKey,
               child: Column(
@@ -774,19 +790,19 @@ class _DataFormPageState extends State<DataFormPage> {
                             },
                             displayStringForOption: (Map<String, dynamic> option) => option['storeName'] ?? '',
                             onSelected: (Map<String, dynamic> selection) {
-                              _storeNameCtrl.text = selection['storeName'] ?? '';
-                              _ownerNameCtrl.text = selection['ownerName'] ?? '';
-                              _picNameCtrl.text = selection['picName'] ?? '';
-                              _phoneCtrl.text = selection['phone'] ?? '';
-                              _addressCtrl.text = selection['address'] ?? '';
-                              _volxCtrl.text = selection['volx'] ?? '';
-                              _takisCtrl.text = selection['takis'] ?? '';
-                              _tribeCtrl.text = selection['tribe'] ?? '';
-                              _podVolxCtrl.text = selection['pod_volx'] ?? '';
-                              _podTakisCtrl.text = selection['pod_takis'] ?? '';
-                              _podTribeCtrl.text = selection['pod_tribe'] ?? '';
-                              _ctCtrl.text = selection['ct'] ?? '';
-                              _insideCtrl.text = selection['inside'] ?? '';
+                              _storeNameCtrl.text = selection['storeName']?.toString() ?? '';
+                              _ownerNameCtrl.text = selection['ownerName']?.toString() ?? '';
+                              _picNameCtrl.text = selection['picName']?.toString() ?? '';
+                              _phoneCtrl.text = selection['phone']?.toString() ?? '';
+                              _addressCtrl.text = selection['address']?.toString() ?? '';
+                              _volxCtrl.text = selection['volx']?.toString() ?? '';
+                              _takisCtrl.text = selection['takis']?.toString() ?? '';
+                              _tribeCtrl.text = selection['tribe']?.toString() ?? '';
+                              _podVolxCtrl.text = selection['pod_volx']?.toString() ?? '';
+                              _podTakisCtrl.text = selection['pod_takis']?.toString() ?? '';
+                              _podTribeCtrl.text = selection['pod_tribe']?.toString() ?? '';
+                              _ctCtrl.text = selection['ct']?.toString() ?? '';
+                              _insideCtrl.text = selection['inside']?.toString() ?? '';
                               // Trigger UI update if needed
                               setState(() {});
                             },
@@ -794,31 +810,31 @@ class _DataFormPageState extends State<DataFormPage> {
                               if (_storeNameCtrl.text.isNotEmpty && fieldTextEditingController.text.isEmpty) {
                                 fieldTextEditingController.text = _storeNameCtrl.text;
                               }
-                              fieldTextEditingController.addListener(() {
-                                _storeNameCtrl.text = fieldTextEditingController.text;
-                              });
                               return TextFormField(
                                 controller: fieldTextEditingController,
                                 focusNode: fieldFocusNode,
                                 decoration: const InputDecoration(labelText: 'Nama Vape Store *', prefixIcon: Icon(Icons.store)),
-                                validator: (value) => value!.isEmpty ? 'Nama toko harus diisi' : null,
+                                validator: (value) => value == null || value.trim().isEmpty ? 'Nama toko harus diisi' : null,
+                                onChanged: (val) {
+                                  _storeNameCtrl.text = val;
+                                }
                               );
                             },
                           ),
                           const SizedBox(height: 12),
                           Row(
                             children: [
-                              Expanded(child: TextFormField(controller: _ownerNameCtrl, decoration: const InputDecoration(labelText: 'Nama Owner *', prefixIcon: Icon(Icons.person)), validator: (value) => value!.isEmpty ? 'Wajib diisi' : null)),
+                              Expanded(child: TextFormField(controller: _ownerNameCtrl, decoration: const InputDecoration(labelText: 'Nama Owner *', prefixIcon: Icon(Icons.person)), validator: (value) => value == null || value.trim().isEmpty ? 'Wajib diisi' : null)),
                               const SizedBox(width: 12),
-                              Expanded(child: TextFormField(controller: _picNameCtrl, decoration: const InputDecoration(labelText: 'Nama PIC *', prefixIcon: Icon(Icons.badge)), validator: (value) => value!.isEmpty ? 'Wajib diisi' : null)),
+                              Expanded(child: TextFormField(controller: _picNameCtrl, decoration: const InputDecoration(labelText: 'Nama PIC *', prefixIcon: Icon(Icons.badge)), validator: (value) => value == null || value.trim().isEmpty ? 'Wajib diisi' : null)),
                             ],
                           ),
                           const SizedBox(height: 12),
-                          TextFormField(controller: _phoneCtrl, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Nomor HP *', prefixIcon: Icon(Icons.phone)), validator: (value) => value!.isEmpty ? 'Wajib diisi' : null),
+                          TextFormField(controller: _phoneCtrl, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Nomor HP *', prefixIcon: Icon(Icons.phone)), validator: (value) => value == null || value.trim().isEmpty ? 'Wajib diisi' : null),
                           const SizedBox(height: 12),
                           TextFormField(
                             controller: _addressCtrl, decoration: const InputDecoration(labelText: 'Alamat Toko Lengkap *', prefixIcon: Icon(Icons.location_on)), maxLines: 2,
-                            validator: (value) => value!.isEmpty ? 'Alamat harus diisi' : null,
+                            validator: (value) => value == null || value.trim().isEmpty ? 'Alamat harus diisi' : null,
                           ),
                         ],
                       ),
@@ -982,6 +998,7 @@ class _DataFormPageState extends State<DataFormPage> {
             ),
         ],
       ),
+      ),
     );
   }
 }
@@ -1072,7 +1089,7 @@ class _HistoryPageState extends State<HistoryPage> {
     return Scaffold(
       backgroundColor: Colors.grey.shade100,
       appBar: AppBar(
-        title: const Text('Riwayat Kunjungan', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Riwayat Laporan', style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.white, foregroundColor: Colors.black87, elevation: 0,
         actions: [
           if (_selectedIds.isNotEmpty)
@@ -1136,10 +1153,15 @@ class _HistoryPageState extends State<HistoryPage> {
                             });
                           },
                         ),
-                        if (store['imagePaths'] != null && store['imagePaths'].toString().isNotEmpty)
+                        if (store['imagePaths'] != null && store['imagePaths'].toString().isNotEmpty && store['imagePaths'] != '[]')
                           ClipRRect(borderRadius: BorderRadius.circular(8), child: Builder(builder: (context) {
-                            final path = List<String>.from(jsonDecode(store['imagePaths'])).first;
-                            return Image.file(File(path), width: 50, height: 50, fit: BoxFit.cover);
+                            try {
+                              final paths = List<String>.from(jsonDecode(store['imagePaths']));
+                              if (paths.isNotEmpty) {
+                                return Image.file(File(paths.first), width: 50, height: 50, fit: BoxFit.cover);
+                              }
+                            } catch(e) {}
+                            return CircleAvatar(backgroundColor: Colors.blue.shade100, child: const Icon(Icons.store, color: Colors.blue));
                           }))
                         else
                           CircleAvatar(backgroundColor: Colors.blue.shade100, child: const Icon(Icons.store, color: Colors.blue)),

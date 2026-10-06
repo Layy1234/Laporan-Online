@@ -7,11 +7,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
 import 'database_helper.dart';
-
-// GANTI LINK INI DENGAN LINK HOSTING ANDA NANTINYA
-const String apiUrl = 'https://laporantva.my.id/api/api.php';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -100,15 +96,11 @@ Future<void> generateAndPrintPdf(BuildContext context, List<Map<String, dynamic>
   // Memuat semua foto secara bersamaan (paralel) agar tidak lama
   await Future.wait(uniquePaths.map((path) async {
     try {
-      if (path.startsWith('http')) {
-        preloadedImages[path] = await networkImage(path);
-      } else {
-        final imageFile = File(path);
-        if (imageFile.existsSync()) {
-          preloadedImages[path] = await flutterImageProvider(
-            ResizeImage(FileImage(imageFile), width: 800),
-          );
-        }
+      final imageFile = File(path);
+      if (imageFile.existsSync()) {
+        preloadedImages[path] = await flutterImageProvider(
+          ResizeImage(FileImage(imageFile), width: 800),
+        );
       }
     } catch (e) {
       print("Error loading image $path: $e");
@@ -385,19 +377,12 @@ class WelcomePage extends StatefulWidget {
 
 class _WelcomePageState extends State<WelcomePage> {
   final _nameCtrl = TextEditingController();
-  final _usernameCtrl = TextEditingController();
-  bool _isLogin = true;
   bool _isLoading = false;
 
   void _submit() async {
-    final username = _usernameCtrl.text.trim();
     final name = _nameCtrl.text.trim();
 
-    if (username.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Username tidak boleh kosong')));
-      return;
-    }
-    if (!_isLogin && name.isEmpty) {
+    if (name.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nama lengkap tidak boleh kosong')));
       return;
     }
@@ -405,46 +390,15 @@ class _WelcomePageState extends State<WelcomePage> {
     setState(() { _isLoading = true; });
 
     try {
-      final authUrl = apiUrl.replaceAll('api.php', 'auth.php');
-      final response = await http.post(
-        Uri.parse(authUrl),
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: _isLogin 
-          ? {'action': 'login', 'username': username}
-          : {'action': 'register', 'username': username, 'nama': name},
-      ).timeout(const Duration(seconds: 10));
-
-      final data = jsonDecode(response.body);
-      if (data['status'] == 'success') {
-        final prefs = await SharedPreferences.getInstance();
-        if (data['data']['id'] != null) {
-          await prefs.setString('userId', data['data']['id'].toString());
-        }
-        await prefs.setString('userName', data['data']['nama'] ?? name);
-        await prefs.setString('username', data['data']['username'] ?? username);
-        if (mounted) {
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DataFormPage()));
-        }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(data['message'] ?? 'Gagal')));
-        }
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('userName', name);
+      if (mounted) {
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DataFormPage()));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Selamat Datang!')));
       }
     } catch (e) {
-      // Fallback lokal jika tidak ada internet atau server error
       if (mounted) {
-        if (!_isLogin) {
-          // Jika register dan error, kita simpan secara lokal saja (offline fallback)
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('userName', name);
-          await prefs.setString('username', username);
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DataFormPage()));
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Disimpan lokal (Offline)')));
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Terjadi kesalahan: $e')));
-        }
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Terjadi kesalahan: $e')));
       }
     }
 
@@ -466,32 +420,23 @@ class _WelcomePageState extends State<WelcomePage> {
             children: [
               const Icon(Icons.account_circle, size: 80, color: Colors.deepOrange),
               const SizedBox(height: 24),
-              Text(
-                _isLogin ? 'Selamat Datang Kembali!' : 'Buat Akun Baru',
+              const Text(
+                'Selamat Datang!',
                 textAlign: TextAlign.center, 
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)
               ),
               const SizedBox(height: 8),
-              Text(
-                _isLogin 
-                  ? 'Silakan masukkan Username Anda untuk melanjutkan.' 
-                  : 'Silakan buat akun. Cukup masukkan Username dan Nama Anda.',
+              const Text(
+                'Silakan masukkan Nama Lengkap Anda untuk mulai menggunakan aplikasi.',
                 textAlign: TextAlign.center, 
-                style: const TextStyle(color: Colors.grey)
+                style: TextStyle(color: Colors.grey)
               ),
               const SizedBox(height: 32),
               
               TextField(
-                controller: _usernameCtrl,
-                decoration: const InputDecoration(labelText: 'Username', prefixIcon: Icon(Icons.alternate_email)),
+                controller: _nameCtrl,
+                decoration: const InputDecoration(labelText: 'Nama Lengkap', prefixIcon: Icon(Icons.person)),
               ),
-              if (!_isLogin) ...[
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _nameCtrl,
-                  decoration: const InputDecoration(labelText: 'Nama Lengkap', prefixIcon: Icon(Icons.person)),
-                ),
-              ],
               
               const SizedBox(height: 24),
               ElevatedButton(
@@ -499,22 +444,8 @@ class _WelcomePageState extends State<WelcomePage> {
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.deepOrange, foregroundColor: Colors.white),
                 child: _isLoading 
                   ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                  : Text(_isLogin ? 'Masuk' : 'Daftar', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  : const Text('Mulai', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               ),
-              const SizedBox(height: 16),
-              TextButton(
-                onPressed: () {
-                  setState(() {
-                    _isLogin = !_isLogin;
-                    _usernameCtrl.clear();
-                    _nameCtrl.clear();
-                  });
-                },
-                child: Text(
-                  _isLogin ? 'Belum punya akun? Daftar di sini' : 'Sudah punya akun? Masuk di sini',
-                  style: const TextStyle(color: Colors.deepOrange, fontWeight: FontWeight.bold)
-                ),
-              )
             ],
           ),
         ),
@@ -558,28 +489,6 @@ class _DataFormPageState extends State<DataFormPage> {
   List<Map<String, dynamic>> _localStores = [];
 
   Future<void> _loadLocalStores() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final userId = prefs.getString('userId');
-      if (userId != null) {
-        final response = await http.get(Uri.parse('$apiUrl?user_id=$userId'));
-        if (response.statusCode == 200) {
-          final resData = jsonDecode(response.body);
-          if (resData['status'] == 'success') {
-            final List data = resData['data'];
-            if (mounted) {
-              setState(() {
-                _localStores = data.cast<Map<String, dynamic>>();
-              });
-            }
-            return;
-          }
-        }
-      }
-    } catch (e) {
-      print('Fetch error: $e');
-    }
-    // Fallback to local
     final stores = await DatabaseHelper.instance.getAllStores();
     if (mounted) {
       setState(() {
@@ -684,54 +593,6 @@ class _DataFormPageState extends State<DataFormPage> {
     setState(() { _images.clear(); });
   }
 
-  Future<void> _uploadToServer(Map<String, dynamic> data) async {
-    if (apiUrl.contains('NAMA_WEBSITE_ANDA.com')) {
-      print('API URL belum diubah, skip upload ke server.');
-      return;
-    }
-
-    final prefs = await SharedPreferences.getInstance();
-    final reporterName = prefs.getString('userName') ?? 'Tanpa Nama';
-    final userId = prefs.getString('userId');
-
-    try {
-      var request = http.MultipartRequest('POST', Uri.parse(apiUrl));
-      if (userId != null) {
-        request.fields['user_id'] = userId;
-      }
-      if (data['id'] != null) {
-        request.fields['id'] = data['id'].toString();
-      }
-      request.fields['storeName'] = data['storeName'] ?? '';
-      request.fields['ownerName'] = data['ownerName'] ?? '';
-      request.fields['picName'] = data['picName'] ?? '';
-      request.fields['phone'] = data['phone'] ?? '';
-      request.fields['address'] = data['address'] ?? '';
-      request.fields['volx'] = data['volx'] ?? '';
-      request.fields['takis'] = data['takis'] ?? '';
-      request.fields['tribe'] = data['tribe'] ?? '';
-      request.fields['pod_volx'] = data['pod_volx'] ?? '';
-      request.fields['pod_takis'] = data['pod_takis'] ?? '';
-      request.fields['pod_tribe'] = data['pod_tribe'] ?? '';
-      request.fields['ct'] = data['ct'] ?? '';
-      request.fields['inside'] = data['inside'] ?? '';
-      request.fields['reporterName'] = reporterName; 
-
-      for (File img in _images) {
-        request.files.add(await http.MultipartFile.fromPath('images[]', img.path));
-      }
-
-      var response = await request.send();
-      if (response.statusCode == 200) {
-        print('Upload ke server berhasil');
-      } else {
-        print('Gagal upload ke server: ${response.statusCode}');
-      }
-    } catch (e) {
-      print('Error upload server: $e');
-    }
-  }
-
   Future<void> _processSave({required bool printPdf}) async {
     if (!_formKey.currentState!.validate()) return;
     
@@ -744,8 +605,6 @@ class _DataFormPageState extends State<DataFormPage> {
     } else {
       await DatabaseHelper.instance.insertStore(data);
     }
-
-    await _uploadToServer(data);
     
     setState(() => _isLoading = false);
 
@@ -756,7 +615,7 @@ class _DataFormPageState extends State<DataFormPage> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(printPdf ? '✅ PDF berhasil dibuat!' : '✅ Data berhasil disimpan ke Lokal & Server!'),
+          content: Text(printPdf ? '✅ PDF berhasil dibuat!' : '✅ Data berhasil disimpan ke Lokal!'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -1116,7 +975,7 @@ class _DataFormPageState extends State<DataFormPage> {
                   children: [
                     CircularProgressIndicator(color: Colors.white),
                     SizedBox(height: 16),
-                    Text('Mengunggah ke Server...', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    Text('Menyimpan Data...', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   ],
                 ),
               ),
@@ -1135,63 +994,12 @@ class HistoryPage extends StatefulWidget {
 
 class _HistoryPageState extends State<HistoryPage> {
   List<Map<String, dynamic>> _stores = [];
-  bool _isSyncing = false;
-  Future<void> _syncFromServer() async {
-    setState(() => _isSyncing = true);
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final userId = prefs.getString('userId');
-      final url = userId != null ? '$apiUrl?user_id=$userId' : apiUrl;
-      final response = await http.get(Uri.parse(url));
-      if (response.statusCode == 200) {
-        final resData = jsonDecode(response.body);
-        if (resData["status"] == "success") {
-          final List storesData = resData["data"];
-          final db = await DatabaseHelper.instance.database;
-          await db.delete("stores");
-          for (var store in storesData) {
-            String imagePathsStr = "";
-            if (store["imagePaths"] != null) {
-              if (store["imagePaths"] is List) {
-                imagePathsStr = jsonEncode(store["imagePaths"]);
-              } else {
-                imagePathsStr = store["imagePaths"].toString();
-              }
-            }
-            Map<String, dynamic> localStore = {
-              "id": int.tryParse(store["id"].toString()) ?? 0,
-              "storeName": store["storeName"] ?? "",
-              "ownerName": store["ownerName"] ?? "",
-              "picName": store["picName"] ?? "",
-              "address": store["address"] ?? "",
-              "volx": store["volx"] ?? "",
-              "takis": store["takis"] ?? "",
-              "tribe": store["tribe"] ?? "",
-              "pod_volx": store["pod_volx"] ?? "",
-              "pod_takis": store["pod_takis"] ?? "",
-              "pod_tribe": store["pod_tribe"] ?? "",
-              "ct": store["ct"] ?? "",
-              "inside": store["inside"] ?? "",
-              "imagePaths": imagePathsStr,
-              "createdAt": store["createdAt"] ?? "",
-            };
-            await DatabaseHelper.instance.insertStore(localStore);
-          }
-        }
-      }
-    } catch (e) {
-      print("Sync error: " + e.toString());
-    }
-    setState(() => _isSyncing = false);
-    _refreshStores();
-  }
-
   Set<int> _selectedIds = {};
 
   @override
   void initState() {
     super.initState();
-    _syncFromServer();
+    _refreshStores();
   }
 
   Future<void> _refreshStores() async {
@@ -1203,14 +1011,6 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   Future<void> _deleteStore(int id) async {
-    try {
-      await http.post(
-        Uri.parse(apiUrl),
-        body: {'action': 'delete', 'id': id.toString()},
-      );
-    } catch (e) {
-      print('Gagal hapus dari server: $e');
-    }
     await DatabaseHelper.instance.deleteStore(id);
     _refreshStores();
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Data berhasil dihapus')));
@@ -1295,7 +1095,7 @@ class _HistoryPageState extends State<HistoryPage> {
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: _syncFromServer,
+        onRefresh: _refreshStores,
         child: _stores.isEmpty
             ? ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -1339,7 +1139,7 @@ class _HistoryPageState extends State<HistoryPage> {
                         if (store['imagePaths'] != null && store['imagePaths'].toString().isNotEmpty)
                           ClipRRect(borderRadius: BorderRadius.circular(8), child: Builder(builder: (context) {
                             final path = List<String>.from(jsonDecode(store['imagePaths'])).first;
-                            return path.startsWith('http') ? Image.network(path, width: 50, height: 50, fit: BoxFit.cover) : Image.file(File(path), width: 50, height: 50, fit: BoxFit.cover);
+                            return Image.file(File(path), width: 50, height: 50, fit: BoxFit.cover);
                           }))
                         else
                           CircleAvatar(backgroundColor: Colors.blue.shade100, child: const Icon(Icons.store, color: Colors.blue)),

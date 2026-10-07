@@ -7,7 +7,11 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 import 'database_helper.dart';
+
+const String SERVER_URL = 'https://laporantva.my.id/api/auth.php'; 
+const String API_URL = 'https://laporantva.my.id/api/api.php'; 
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -357,7 +361,7 @@ class _SplashScreenState extends State<SplashScreen> {
     final prefs = await SharedPreferences.getInstance();
     final name = prefs.getString('userName');
     if (name == null || name.isEmpty) {
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const WelcomePage()));
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AuthPage()));
     } else {
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DataFormPage()));
     }
@@ -369,32 +373,62 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 }
 
-class WelcomePage extends StatefulWidget {
-  const WelcomePage({super.key});
+class AuthPage extends StatefulWidget {
+  const AuthPage({super.key});
   @override
-  State<WelcomePage> createState() => _WelcomePageState();
+  State<AuthPage> createState() => _AuthPageState();
 }
 
-class _WelcomePageState extends State<WelcomePage> {
+class _AuthPageState extends State<AuthPage> {
   final _nameCtrl = TextEditingController();
+  final _usernameCtrl = TextEditingController();
   bool _isLoading = false;
+  bool _isLogin = true; // true = Login, false = Register
 
   void _submit() async {
+    final username = _usernameCtrl.text.trim();
     final name = _nameCtrl.text.trim();
 
-    if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nama lengkap tidak boleh kosong')));
+    if (username.isEmpty || (!_isLogin && name.isEmpty)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Form tidak boleh kosong')));
       return;
     }
 
     setState(() { _isLoading = true; });
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('userName', name);
-      if (mounted) {
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DataFormPage()));
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Selamat Datang!')));
+      final url = Uri.parse(SERVER_URL);
+      final body = _isLogin 
+          ? {'action': 'login', 'username': username}
+          : {'action': 'register', 'username': username, 'nama': name};
+
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: body,
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['status'] == 'success') {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('userName', data['data']['nama']);
+          await prefs.setString('username_login', data['data']['username']);
+          await prefs.setString('userId', data['data']['id'].toString());
+
+          if (mounted) {
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DataFormPage()));
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(data['message'])));
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(data['message'] ?? 'Gagal')));
+          }
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal menghubungi server. Code: ${response.statusCode}')));
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -423,22 +457,29 @@ class _WelcomePageState extends State<WelcomePage> {
             children: [
               const Icon(Icons.account_circle, size: 80, color: Colors.deepOrange),
               const SizedBox(height: 24),
-              const Text(
-                'Selamat Datang!',
+              Text(
+                _isLogin ? 'Login' : 'Registrasi',
                 textAlign: TextAlign.center, 
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)
+                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)
               ),
               const SizedBox(height: 8),
-              const Text(
-                'Silakan masukkan Nama Lengkap Anda untuk mulai menggunakan aplikasi.',
+              Text(
+                _isLogin ? 'Silakan login menggunakan username Anda.' : 'Silakan lengkapi data untuk mendaftar.',
                 textAlign: TextAlign.center, 
-                style: TextStyle(color: Colors.grey)
+                style: const TextStyle(color: Colors.grey)
               ),
               const SizedBox(height: 32),
               
+              if (!_isLogin)
+                TextField(
+                  controller: _nameCtrl,
+                  decoration: const InputDecoration(labelText: 'Nama Lengkap', prefixIcon: Icon(Icons.person)),
+                ),
+              if (!_isLogin) const SizedBox(height: 16),
+                
               TextField(
-                controller: _nameCtrl,
-                decoration: const InputDecoration(labelText: 'Nama Lengkap', prefixIcon: Icon(Icons.person)),
+                controller: _usernameCtrl,
+                decoration: const InputDecoration(labelText: 'Username', prefixIcon: Icon(Icons.account_box)),
               ),
               
               const SizedBox(height: 24),
@@ -447,8 +488,19 @@ class _WelcomePageState extends State<WelcomePage> {
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.deepOrange, foregroundColor: Colors.white),
                 child: _isLoading 
                   ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                  : const Text('Mulai', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  : Text(_isLogin ? 'Login' : 'Daftar', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               ),
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    _isLogin = !_isLogin;
+                    _nameCtrl.clear();
+                    _usernameCtrl.clear();
+                  });
+                },
+                child: Text(_isLogin ? 'Belum punya akun? Daftar di sini' : 'Sudah punya akun? Login di sini'),
+              )
             ],
           ),
         ),
@@ -612,12 +664,18 @@ class _DataFormPageState extends State<DataFormPage> {
     setState(() => _isLoading = true);
 
     final data = await _getFormDataAsync();
+    int localId;
     if (widget.storeData != null) {
       data['id'] = widget.storeData!['id'];
       await DatabaseHelper.instance.updateStore(data);
+      localId = data['id'];
     } else {
-      await DatabaseHelper.instance.insertStore(data);
+      localId = await DatabaseHelper.instance.insertStore(data);
+      data['id'] = localId;
     }
+
+    // Upload to server in background
+    _uploadToServerBackground(data);
     
     setState(() => _isLoading = false);
 
@@ -637,6 +695,50 @@ class _DataFormPageState extends State<DataFormPage> {
       } else {
         _clearForm();
       }
+    }
+  }
+
+  Future<void> _uploadToServerBackground(Map<String, dynamic> data) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getString('userId');
+      final reporterName = prefs.getString('userName') ?? '';
+
+      var request = http.MultipartRequest('POST', Uri.parse(API_URL));
+      request.fields['user_id'] = userId ?? '';
+      request.fields['reporterName'] = reporterName;
+      request.fields['storeName'] = data['storeName'] ?? '';
+      request.fields['ownerName'] = data['ownerName'] ?? '';
+      request.fields['picName'] = data['picName'] ?? '';
+      request.fields['phone'] = data['phone'] ?? '';
+      request.fields['address'] = data['address'] ?? '';
+      request.fields['volx'] = data['volx'] ?? '';
+      request.fields['takis'] = data['takis'] ?? '';
+      request.fields['tribe'] = data['tribe'] ?? '';
+      request.fields['pod_volx'] = data['pod_volx'] ?? '';
+      request.fields['pod_takis'] = data['pod_takis'] ?? '';
+      request.fields['pod_tribe'] = data['pod_tribe'] ?? '';
+      request.fields['ct'] = data['ct'] ?? '';
+      request.fields['inside'] = data['inside'] ?? '';
+      
+      // Jika edit, kirimkan id agar diupdate di database server (sesuai api.php)
+      if (widget.storeData != null && data['id'] != null) {
+        request.fields['id'] = data['id'].toString();
+      }
+
+      if (data['imagePaths'] != null && data['imagePaths'].toString().isNotEmpty) {
+        List<String> paths = [];
+        try {
+          paths = List<String>.from(jsonDecode(data['imagePaths']));
+        } catch (e) {}
+        for (String path in paths) {
+          request.files.add(await http.MultipartFile.fromPath('images[]', path));
+        }
+      }
+
+      await request.send();
+    } catch (e) {
+      debugPrint('Gagal upload background: $e');
     }
   }
 
@@ -751,7 +853,7 @@ class _DataFormPageState extends State<DataFormPage> {
                 final prefs = await SharedPreferences.getInstance();
                 await prefs.remove('userName');
                 if (mounted) {
-                  Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const WelcomePage()));
+                  Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AuthPage()));
                 }
               },
             ),

@@ -99,4 +99,9 @@ CREATE TABLE stores (
     final db = await instance.database;
     return await db.delete('stores', where: 'id = ?', whereArgs: [id]);
   }
+
+  Future<void> clearAllStores() async {
+    final db = await instance.database;
+    await db.delete('stores');
+  }
 }

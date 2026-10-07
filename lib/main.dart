@@ -97,14 +97,21 @@ Future<void> generateAndPrintPdf(BuildContext context, List<Map<String, dynamic>
 
   Map<String, pw.ImageProvider> preloadedImages = {};
 
-  // Memuat semua foto secara bersamaan (paralel) agar tidak lama
+  // Memuat semua foto secara bersamaan (paralel) agar lebih cepat
   await Future.wait(uniquePaths.map((path) async {
     try {
-      final imageFile = File(path);
-      if (imageFile.existsSync()) {
-        preloadedImages[path] = await flutterImageProvider(
-          ResizeImage(FileImage(imageFile), width: 800),
-        );
+      if (path.startsWith('http')) {
+        final response = await http.get(Uri.parse(path)).timeout(const Duration(seconds: 10));
+        if (response.statusCode == 200) {
+          preloadedImages[path] = pw.MemoryImage(response.bodyBytes);
+        }
+      } else {
+        final imageFile = File(path);
+        if (imageFile.existsSync()) {
+          preloadedImages[path] = await flutterImageProvider(
+            ResizeImage(FileImage(imageFile), width: 800),
+          );
+        }
       }
     } catch (e) {
       print("Error loading image $path: $e");
@@ -187,10 +194,9 @@ Future<void> generateAndPrintPdf(BuildContext context, List<Map<String, dynamic>
                           pw.Expanded(flex: 2, child: pw.Text('${data['phone'] ?? '-'}', style: const pw.TextStyle(fontSize: 12))),
                         ]),
                         pw.SizedBox(height: 2),
-                        pw.Row(children: [
-                          pw.Expanded(child: pw.Text('Alamat:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12))),
-                          pw.Expanded(flex: 2, child: pw.Text('${data['address'] ?? '-'}', style: const pw.TextStyle(fontSize: 12))),
-                        ]),
+                        pw.SizedBox(height: 4),
+                        pw.Text('Alamat:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
+                        pw.Text('${data['address'] ?? '-'}', style: const pw.TextStyle(fontSize: 12)),
                       ],
                     ),
                   ),
@@ -587,12 +593,19 @@ class _DataFormPageState extends State<DataFormPage> {
 
   Future<void> _pickImage(ImageSource source) async {
     if (source == ImageSource.gallery) {
-      final List<XFile> pickedFiles = await _picker.pickMultiImage();
+      final List<XFile> pickedFiles = await _picker.pickMultiImage(
+        imageQuality: 35,
+        maxWidth: 1024,
+      );
       if (pickedFiles.isNotEmpty) {
         setState(() { _images.addAll(pickedFiles.map((e) => File(e.path))); });
       }
     } else {
-      final XFile? pickedFile = await _picker.pickImage(source: source);
+      final XFile? pickedFile = await _picker.pickImage(
+        source: source,
+        imageQuality: 35, // Kompresi kualitas gambar hingga 35%
+        maxWidth: 1024,   // Batasi resolusi maksimal lebar 1024 pixel
+      );
       if (pickedFile != null) {
         setState(() { _images.add(File(pickedFile.path)); });
       }
@@ -1121,6 +1134,47 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   Future<void> _refreshStores() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getString('userId');
+      if (userId != null) {
+        final response = await http.get(Uri.parse('$API_URL?user_id=$userId'));
+        if (response.statusCode == 200) {
+          final resData = jsonDecode(response.body);
+          if (resData['status'] == 'success') {
+            final List<dynamic> serverData = resData['data'];
+            await DatabaseHelper.instance.clearAllStores();
+            for (var item in serverData) {
+              if (item['imagePaths'] is List) {
+                item['imagePaths'] = jsonEncode(item['imagePaths']);
+              }
+              // Hanya ambil kolom yang didukung oleh SQLite lokal
+              List<String> validColumns = [
+                'id', 'storeName', 'ownerName', 'picName', 'phone', 'address',
+                'volx', 'takis', 'tribe', 'pod_volx', 'pod_takis', 'pod_tribe',
+                'ct', 'pod', 'inside', 'imagePath', 'imagePaths'
+              ];
+              
+              Map<String, dynamic> localData = {};
+              item.forEach((key, value) {
+                if (validColumns.contains(key)) {
+                  if (key == 'id' && value != null) {
+                    localData[key] = int.tryParse(value.toString());
+                  } else {
+                    localData[key] = value?.toString() ?? '';
+                  }
+                }
+              });
+              
+              await DatabaseHelper.instance.insertStore(localData);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Sync error: $e');
+    }
+
     final data = await DatabaseHelper.instance.getAllStores();
     setState(() {
       _stores = data;
@@ -1129,6 +1183,14 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   Future<void> _deleteStore(int id) async {
+    try {
+      await http.post(
+        Uri.parse(API_URL),
+        body: {'action': 'delete', 'id': id.toString()},
+      );
+    } catch (e) {
+      debugPrint('Error deleting on server: $e');
+    }
     await DatabaseHelper.instance.deleteStore(id);
     _refreshStores();
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Data berhasil dihapus')));
@@ -1243,32 +1305,42 @@ class _HistoryPageState extends State<HistoryPage> {
                   elevation: 0, margin: const EdgeInsets.only(bottom: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   child: ExpansionTile(
                     shape: const Border(),
-                    leading: Row(
-                      mainAxisSize: MainAxisSize.min,
+                    leading: Checkbox(
+                      value: _selectedIds.contains(store['id']),
+                      onChanged: (bool? value) {
+                        setState(() {
+                          if (value == true) { _selectedIds.add(store['id']); } else { _selectedIds.remove(store['id']); }
+                        });
+                      },
+                    ),
+                    title: Row(
                       children: [
-                        Checkbox(
-                          value: _selectedIds.contains(store['id']),
-                          onChanged: (bool? value) {
-                            setState(() {
-                              if (value == true) { _selectedIds.add(store['id']); } else { _selectedIds.remove(store['id']); }
-                            });
-                          },
-                        ),
                         if (store['imagePaths'] != null && store['imagePaths'].toString().isNotEmpty && store['imagePaths'] != '[]')
-                          ClipRRect(borderRadius: BorderRadius.circular(8), child: Builder(builder: (context) {
-                            try {
-                              final paths = List<String>.from(jsonDecode(store['imagePaths']));
-                              if (paths.isNotEmpty) {
-                                return Image.file(File(paths.first), width: 50, height: 50, fit: BoxFit.cover);
-                              }
-                            } catch(e) {}
-                            return CircleAvatar(backgroundColor: Colors.blue.shade100, child: const Icon(Icons.store, color: Colors.blue));
-                          }))
+                          Padding(
+                            padding: const EdgeInsets.only(right: 12),
+                            child: ClipRRect(borderRadius: BorderRadius.circular(8), child: Builder(builder: (context) {
+                              try {
+                                final paths = List<String>.from(jsonDecode(store['imagePaths']));
+                                if (paths.isNotEmpty) {
+                                  final imgPath = paths.first;
+                                  if (imgPath.startsWith('http')) {
+                                    return Image.network(imgPath, width: 50, height: 50, fit: BoxFit.cover, errorBuilder: (c,e,s) => CircleAvatar(backgroundColor: Colors.blue.shade100, child: const Icon(Icons.store, color: Colors.blue)));
+                                  } else {
+                                    return Image.file(File(imgPath), width: 50, height: 50, fit: BoxFit.cover, errorBuilder: (c,e,s) => CircleAvatar(backgroundColor: Colors.blue.shade100, child: const Icon(Icons.store, color: Colors.blue)));
+                                  }
+                                }
+                              } catch(e) {}
+                              return CircleAvatar(backgroundColor: Colors.blue.shade100, child: const Icon(Icons.store, color: Colors.blue));
+                            })),
+                          )
                         else
-                          CircleAvatar(backgroundColor: Colors.blue.shade100, child: const Icon(Icons.store, color: Colors.blue)),
+                          Padding(
+                            padding: const EdgeInsets.only(right: 12),
+                            child: CircleAvatar(backgroundColor: Colors.blue.shade100, child: const Icon(Icons.store, color: Colors.blue)),
+                          ),
+                        Expanded(child: Text(store['storeName'] ?? 'No Name', style: const TextStyle(fontWeight: FontWeight.bold))),
                       ],
                     ),
-                    title: Text(store['storeName'] ?? 'No Name', style: const TextStyle(fontWeight: FontWeight.bold)),
                     subtitle: Text(store['address'] ?? 'No Address', maxLines: 1, overflow: TextOverflow.ellipsis),
                     children: [
                       Container(

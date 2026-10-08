@@ -733,9 +733,12 @@ class _DataFormPageState extends State<DataFormPage> {
       request.fields['ct'] = data['ct'] ?? '';
       request.fields['inside'] = data['inside'] ?? '';
       
-      // Jika edit, kirimkan id agar diupdate di database server (sesuai api.php)
+      // Menambahkan parameter action agar server tahu ini insert atau update
       if (widget.storeData != null && data['id'] != null) {
+        request.fields['action'] = 'update';
         request.fields['id'] = data['id'].toString();
+      } else {
+        request.fields['action'] = 'insert';
       }
 
       if (data['imagePaths'] != null && data['imagePaths'].toString().isNotEmpty) {
@@ -893,14 +896,26 @@ class _DataFormPageState extends State<DataFormPage> {
                         children: [
                           _buildSectionTitle('Informasi Toko', Icons.storefront),
                           Autocomplete<Map<String, dynamic>>(
+                            initialValue: TextEditingValue(text: _storeNameCtrl.text),
                             optionsBuilder: (TextEditingValue textEditingValue) {
                               if (textEditingValue.text.isEmpty) {
                                 return const Iterable<Map<String, dynamic>>.empty();
                               }
-                              return _localStores.where((store) {
+                              final matches = _localStores.where((store) {
                                 final name = (store['storeName'] ?? '').toString().toLowerCase();
                                 return name.contains(textEditingValue.text.toLowerCase());
-                              });
+                              }).toList();
+                              
+                              final uniqueMatches = <Map<String, dynamic>>[];
+                              final seen = <String>{};
+                              for (var match in matches) {
+                                final name = (match['storeName'] ?? '').toString().toLowerCase();
+                                if (!seen.contains(name)) {
+                                  seen.add(name);
+                                  uniqueMatches.add(match);
+                                }
+                              }
+                              return uniqueMatches;
                             },
                             displayStringForOption: (Map<String, dynamic> option) => option['storeName'] ?? '',
                             onSelected: (Map<String, dynamic> selection) {
@@ -921,9 +936,6 @@ class _DataFormPageState extends State<DataFormPage> {
                               setState(() {});
                             },
                             fieldViewBuilder: (BuildContext context, TextEditingController fieldTextEditingController, FocusNode fieldFocusNode, VoidCallback onFieldSubmitted) {
-                              if (_storeNameCtrl.text.isNotEmpty && fieldTextEditingController.text.isEmpty) {
-                                fieldTextEditingController.text = _storeNameCtrl.text;
-                              }
                               return TextFormField(
                                 controller: fieldTextEditingController,
                                 focusNode: fieldFocusNode,

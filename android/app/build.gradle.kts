@@ -54,6 +54,8 @@ android {
         release {
             // Menggunakan signingConfig release yang telah dibuat
             signingConfig = signingConfigs.getByName("release")
+            isMinifyEnabled = true
+            isShrinkResources = true
         }
     }
 }

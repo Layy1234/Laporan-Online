@@ -79,6 +79,18 @@ CREATE TABLE stores (
     return await db.insert('stores', row);
   }
 
+  Future<void> upsertStore(Map<String, dynamic> row) async {
+    final db = await instance.database;
+    if (!row.containsKey('createdAt') || row['createdAt'] == null) {
+      row['createdAt'] = DateTime.now().toIso8601String();
+    }
+    await db.insert(
+      'stores',
+      row,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
   Future<int> updateStore(Map<String, dynamic> row) async {
     final db = await instance.database;
     int id = row['id'];

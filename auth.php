@@ -4,19 +4,7 @@ header("Access-Control-Allow-Methods: POST, GET, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type");
 header("Content-Type: application/json");
 
-// ==========================================
-// KONFIGURASI DATABASE
-// ==========================================
-$servername = "localhost";
-$username = "namadom2_hendra";
-$password = "Legalayy!23";
-$dbname = "namadom2_hendra";
-
-$conn = new mysqli($servername, $username, $password, $dbname);
-
-if ($conn->connect_error) {
-    die(json_encode(["status" => "error", "message" => "Connection failed: " . $conn->connect_error]));
-}
+require_once __DIR__ . '/config.php';
 
 $raw_json = file_get_contents('php://input');
 if (!empty($raw_json)) {

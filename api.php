@@ -4,21 +4,7 @@ header("Access-Control-Allow-Methods: POST, GET, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type");
 header("Content-Type: application/json");
 
-// ==========================================
-// KONFIGURASI DATABASE
-// ==========================================
-$servername = "localhost";
-$username = "namadom2_hendra";
-$password = "Legalayy!23";
-$dbname = "namadom2_hendra";
-
-// Membuat koneksi ke database MySQL
-$conn = new mysqli($servername, $username, $password, $dbname);
-
-// Cek koneksi
-if ($conn->connect_error) {
-    die(json_encode(["status" => "error", "message" => "Connection failed: " . $conn->connect_error]));
-}
+require_once __DIR__ . '/config.php';
 
 // ==========================================
 // HANDLE REQUEST POST DARI FLUTTER
@@ -68,7 +54,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     }
 
-    $imagePathsJson = json_encode($uploadedImages);
+    $existingImages = json_decode($_POST['existingImages'] ?? '[]', true) ?: [];
+    $finalImages = array_merge($existingImages, $uploadedImages);
+    $imagePathsJson = json_encode($finalImages);
 
     // 3. Simpan data ke Database MySQL
     $id = $_POST['id'] ?? null;
@@ -87,13 +75,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
     
     if ($id) {
-        if (!empty($uploadedImages)) {
-            $stmt = $conn->prepare("UPDATE stores SET user_id=?, storeName=?, ownerName=?, picName=?, phone=?, address=?, volx=?, takis=?, tribe=?, pod_volx=?, pod_takis=?, pod_tribe=?, ct=?, inside=?, reporterName=?, imagePaths=? WHERE id=?");
-            $stmt->bind_param("isssssssssssssssi", $user_id, $storeName, $ownerName, $picName, $phone, $address, $volx, $takis, $tribe, $pod_volx, $pod_takis, $pod_tribe, $ct, $inside, $reporterName, $imagePathsJson, $id);
-        } else {
-            $stmt = $conn->prepare("UPDATE stores SET user_id=?, storeName=?, ownerName=?, picName=?, phone=?, address=?, volx=?, takis=?, tribe=?, pod_volx=?, pod_takis=?, pod_tribe=?, ct=?, inside=?, reporterName=? WHERE id=?");
-            $stmt->bind_param("isssssssssssssssi", $user_id, $storeName, $ownerName, $picName, $phone, $address, $volx, $takis, $tribe, $pod_volx, $pod_takis, $pod_tribe, $ct, $inside, $reporterName, $id);
-        }
+        $stmt = $conn->prepare("UPDATE stores SET user_id=?, storeName=?, ownerName=?, picName=?, phone=?, address=?, volx=?, takis=?, tribe=?, pod_volx=?, pod_takis=?, pod_tribe=?, ct=?, inside=?, reporterName=?, imagePaths=? WHERE id=?");
+        $stmt->bind_param("isssssssssssssssi", $user_id, $storeName, $ownerName, $picName, $phone, $address, $volx, $takis, $tribe, $pod_volx, $pod_takis, $pod_tribe, $ct, $inside, $reporterName, $imagePathsJson, $id);
     } else {
         $stmt = $conn->prepare("INSERT INTO stores (user_id, storeName, ownerName, picName, phone, address, volx, takis, tribe, pod_volx, pod_takis, pod_tribe, ct, inside, reporterName, imagePaths, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
         $stmt->bind_param("issssssssssssssss", $user_id, $storeName, $ownerName, $picName, $phone, $address, $volx, $takis, $tribe, $pod_volx, $pod_takis, $pod_tribe, $ct, $inside, $reporterName, $imagePathsJson, $createdAt);

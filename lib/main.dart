@@ -97,26 +97,69 @@ Future<void> generateAndPrintPdf(BuildContext context, List<Map<String, dynamic>
 
   Map<String, pw.ImageProvider> preloadedImages = {};
 
-  // Memuat semua foto secara bersamaan (paralel) agar lebih cepat
-  await Future.wait(uniquePaths.map((path) async {
+  final client = http.Client();
+  try {
+    final tempDir = await getTemporaryDirectory();
+    final appDocDir = await getApplicationDocumentsDirectory();
+
+    List<FileSystemEntity>? localDocEntities;
     try {
-      if (path.startsWith('http')) {
-        final response = await http.get(Uri.parse(path)).timeout(const Duration(seconds: 10));
-        if (response.statusCode == 200) {
-          preloadedImages[path] = pw.MemoryImage(response.bodyBytes);
+      localDocEntities = appDocDir.listSync();
+    } catch (_) {}
+
+    await Future.wait(uniquePaths.map((path) async {
+      try {
+        if (path.startsWith('http')) {
+          final fileName = '${path.hashCode}.jpg';
+          final cacheFile = File('${tempDir.path}/$fileName');
+
+          // 1. Cek dari cache temporary
+          if (cacheFile.existsSync() && cacheFile.lengthSync() > 0) {
+            preloadedImages[path] = pw.MemoryImage(cacheFile.readAsBytesSync());
+            return;
+          }
+
+          // 2. Cek apakah file lokal aslinya masih tersimpan di folder dokumen HP
+          final urlBaseName = path.split('/').last;
+          File? matchedLocalFile;
+          final exactDocFile = File('${appDocDir.path}/$urlBaseName');
+          if (exactDocFile.existsSync() && exactDocFile.lengthSync() > 0) {
+            matchedLocalFile = exactDocFile;
+          } else if (localDocEntities != null) {
+            final cleanSuffix = urlBaseName.contains('_') ? urlBaseName.substring(urlBaseName.indexOf('_') + 1) : urlBaseName;
+            for (var entity in localDocEntities) {
+              if (entity is File && entity.path.endsWith(cleanSuffix) && entity.lengthSync() > 0) {
+                matchedLocalFile = entity;
+                break;
+              }
+            }
+          }
+
+          if (matchedLocalFile != null) {
+            preloadedImages[path] = pw.MemoryImage(matchedLocalFile.readAsBytesSync());
+            return;
+          }
+
+          // 3. Jika belum ada di lokal, download secara paralel dari server
+          final response = await client.get(Uri.parse(path)).timeout(const Duration(seconds: 15));
+          if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
+            cacheFile.writeAsBytesSync(response.bodyBytes);
+            preloadedImages[path] = pw.MemoryImage(response.bodyBytes);
+          }
+        } else {
+          // Path file lokal: langsung baca bytes secara instan tanpa rasterisasi lambat
+          final imageFile = File(path);
+          if (imageFile.existsSync() && imageFile.lengthSync() > 0) {
+            preloadedImages[path] = pw.MemoryImage(imageFile.readAsBytesSync());
+          }
         }
-      } else {
-        final imageFile = File(path);
-        if (imageFile.existsSync()) {
-          preloadedImages[path] = await flutterImageProvider(
-            ResizeImage(FileImage(imageFile), width: 800),
-          );
-        }
+      } catch (e) {
+        debugPrint("Error loading image $path: $e");
       }
-    } catch (e) {
-      print("Error loading image $path: $e");
-    }
-  }));
+    }));
+  } finally {
+    client.close();
+  }
 
   if (context.mounted) Navigator.pop(context);
 
@@ -411,7 +454,7 @@ class _AuthPageState extends State<AuthPage> {
         url,
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
         body: body,
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -544,12 +587,58 @@ class _DataFormPageState extends State<DataFormPage> {
   final TextEditingController _insideCtrl = TextEditingController();
 
   List<File> _images = [];
+  List<String> _existingImages = [];
   final ImagePicker _picker = ImagePicker();
   bool _isLoading = false;
   
   List<Map<String, dynamic>> _localStores = [];
 
   Future<void> _loadLocalStores() async {
+    // 1. Langsung load dari database lokal HP terlebih dahulu
+    await _refreshLocalState();
+
+    // 2. Sinkronkan dengan server di latar belakang (tanpa menghapus data lokal baru)
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getString('userId');
+      if (userId != null) {
+        final response = await http.get(Uri.parse('$API_URL?user_id=$userId')).timeout(const Duration(seconds: 15));
+        if (response.statusCode == 200) {
+          final resData = jsonDecode(response.body);
+          if (resData['status'] == 'success') {
+            final List<dynamic> serverData = resData['data'];
+            for (var item in serverData) {
+              if (item['imagePaths'] is List) {
+                item['imagePaths'] = jsonEncode(item['imagePaths']);
+              }
+              List<String> validColumns = [
+                'id', 'storeName', 'ownerName', 'picName', 'phone', 'address',
+                'volx', 'takis', 'tribe', 'pod_volx', 'pod_takis', 'pod_tribe',
+                'ct', 'pod', 'inside', 'imagePath', 'imagePaths', 'createdAt'
+              ];
+              Map<String, dynamic> localData = {};
+              item.forEach((key, value) {
+                if (validColumns.contains(key)) {
+                  if (key == 'id' && value != null) {
+                    localData[key] = int.tryParse(value.toString());
+                  } else {
+                    localData[key] = value?.toString() ?? '';
+                  }
+                }
+              });
+              await DatabaseHelper.instance.upsertStore(localData);
+            }
+            await _refreshLocalState();
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Gagal sync data awal: $e');
+    }
+  }
+
+  Future<void> _refreshLocalState() async {
+    // 2. Load ke dalam state (untuk autofill)
     final stores = await DatabaseHelper.instance.getAllStores();
     if (mounted) {
       setState(() {
@@ -585,8 +674,12 @@ class _DataFormPageState extends State<DataFormPage> {
         try { imagePaths = List<String>.from(jsonDecode(widget.storeData!['imagePaths'])); } catch(e){}
       }
       for (String p in imagePaths) {
-        final f = File(p);
-        if (f.existsSync()) _images.add(f);
+        if (p.startsWith('http')) {
+          _existingImages.add(p);
+        } else {
+          final f = File(p);
+          if (f.existsSync()) _images.add(f);
+        }
       }
     }
   }
@@ -614,6 +707,7 @@ class _DataFormPageState extends State<DataFormPage> {
 
   Future<Map<String, dynamic>> _getFormDataAsync() async {
     List<String> savedPaths = [];
+    savedPaths.addAll(_existingImages);
     final dir = await getApplicationDocumentsDirectory();
     for (File img in _images) {
       if (img.path.contains(dir.path)) {
@@ -656,9 +750,11 @@ class _DataFormPageState extends State<DataFormPage> {
     _podVolxCtrl.clear();
     _podTakisCtrl.clear();
     _podTribeCtrl.clear();
-    _ctCtrl.clear();
     _insideCtrl.clear();
-    setState(() { _images.clear(); });
+    setState(() {
+      _images.clear();
+      _existingImages.clear();
+    });
   }
 
   Future<void> _processSave({required bool printPdf}) async {
@@ -675,6 +771,7 @@ class _DataFormPageState extends State<DataFormPage> {
     
     setState(() => _isLoading = true);
 
+    // 1. Ambil data form beserta path file foto lokal di HP
     final data = await _getFormDataAsync();
     int localId;
     if (widget.storeData != null) {
@@ -686,19 +783,35 @@ class _DataFormPageState extends State<DataFormPage> {
       data['id'] = localId;
     }
 
-    // Upload to server in background
-    _uploadToServerBackground(data);
-    
+    // 2. Buat snapshot file foto sebelum form dibersihkan
+    final filesToUpload = List<File>.from(_images);
+    final existingImgs = List<String>.from(_existingImages);
+
+    // 3. Matikan loading indikator form segera agar user tidak tertahan
     setState(() => _isLoading = false);
 
-    if (printPdf) {
+    // 4. Jalankan upload ke server di background tanpa memblokir proses cetak PDF
+    _uploadToServerBackground(data, filesToUpload, existingImgs).then((_) {
+      if (mounted) {
+        _refreshLocalState();
+      }
+    }).catchError((e) {
+      debugPrint('Background upload error: $e');
+    });
+
+    // 5. Cetak PDF langsung menggunakan data & file gambar lokal (Sangat Cepat / Instan!)
+    if (printPdf && mounted) {
       await generateAndPrintPdf(context, [data]);
     }
+
+    await _refreshLocalState();
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(printPdf ? '✅ PDF berhasil dibuat!' : '✅ Data berhasil disimpan ke Lokal!'),
+          content: Text(printPdf 
+              ? '✅ PDF berhasil dibuat! Data tersimpan di HP & dikirim ke server.' 
+              : '✅ Data disimpan di HP & sedang disinkronkan ke server.'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -710,7 +823,11 @@ class _DataFormPageState extends State<DataFormPage> {
     }
   }
 
-  Future<void> _uploadToServerBackground(Map<String, dynamic> data) async {
+  Future<void> _uploadToServerBackground(
+    Map<String, dynamic> data, [
+    List<File>? filesToUpload,
+    List<String>? existingImgs,
+  ]) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final userId = prefs.getString('userId');
@@ -741,17 +858,29 @@ class _DataFormPageState extends State<DataFormPage> {
         request.fields['action'] = 'insert';
       }
 
-      if (data['imagePaths'] != null && data['imagePaths'].toString().isNotEmpty) {
-        List<String> paths = [];
-        try {
-          paths = List<String>.from(jsonDecode(data['imagePaths']));
-        } catch (e) {}
-        for (String path in paths) {
-          request.files.add(await http.MultipartFile.fromPath('images[]', path));
+      final currentExisting = existingImgs ?? List<String>.from(_existingImages);
+      request.fields['existingImages'] = jsonEncode(currentExisting);
+
+      final currentFiles = filesToUpload ?? List<File>.from(_images);
+      for (File img in currentFiles) {
+        if (img.existsSync()) {
+          request.files.add(await http.MultipartFile.fromPath('images[]', img.path));
         }
       }
 
-      await request.send();
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+      debugPrint('Upload Response Code: ${response.statusCode}');
+      debugPrint('Upload Response Body: ${response.body}');
+      
+      try {
+        final resData = jsonDecode(response.body);
+        if (resData['status'] != 'success') {
+           debugPrint('Server Error: ${resData['message']}');
+        }
+      } catch(e) {
+         debugPrint('Failed to parse server response or server returned error: $e');
+      }
     } catch (e) {
       debugPrint('Gagal upload background: $e');
     }
@@ -866,7 +995,8 @@ class _DataFormPageState extends State<DataFormPage> {
               onTap: () async {
                 Navigator.pop(context); // Tutup drawer
                 final prefs = await SharedPreferences.getInstance();
-                await prefs.remove('userName');
+                await prefs.clear(); // Bersihkan semua sesi
+                await DatabaseHelper.instance.clearAllStores(); // Hapus seluruh database lokal
                 if (mounted) {
                   Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AuthPage()));
                 }
@@ -1052,24 +1182,43 @@ class _DataFormPageState extends State<DataFormPage> {
                           
                           Text('Foto Dokumentasi (Bisa lebih dari 1)', style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.bold)),
                           const SizedBox(height: 10),
-                          if (_images.isNotEmpty)
+                          if (_existingImages.isNotEmpty || _images.isNotEmpty)
                             Wrap(
                               spacing: 8, runSpacing: 8,
-                              children: _images.map((img) => Stack(
-                                children: [
-                                  GestureDetector(
-                                    onTap: () => _showImagePreview(img),
-                                    child: ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.file(img, height: 120, width: 120, fit: BoxFit.cover)),
-                                  ),
-                                  Positioned(
-                                    top: 4, right: 4,
-                                    child: InkWell(
-                                      onTap: () { setState(() { _images.remove(img); }); },
-                                      child: Container(padding: const EdgeInsets.all(4), decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle), child: const Icon(Icons.close, color: Colors.white, size: 16)),
+                              children: [
+                                ..._existingImages.map((img) => Stack(
+                                  children: [
+                                    GestureDetector(
+                                      onTap: () {
+                                        showDialog(context: context, builder: (_) => Dialog(backgroundColor: Colors.transparent, child: Stack(children: [InteractiveViewer(child: Image.network(img, fit: BoxFit.contain)), Positioned(top: 10, right: 10, child: IconButton(icon: const Icon(Icons.close, color: Colors.white, size: 30), onPressed: () => Navigator.pop(context)))])));
+                                      },
+                                      child: ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.network(img, height: 120, width: 120, fit: BoxFit.cover)),
                                     ),
-                                  )
-                                ]
-                              )).toList(),
+                                    Positioned(
+                                      top: 4, right: 4,
+                                      child: InkWell(
+                                        onTap: () { setState(() { _existingImages.remove(img); }); },
+                                        child: Container(padding: const EdgeInsets.all(4), decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle), child: const Icon(Icons.close, color: Colors.white, size: 16)),
+                                      ),
+                                    )
+                                  ]
+                                )).toList(),
+                                ..._images.map((img) => Stack(
+                                  children: [
+                                    GestureDetector(
+                                      onTap: () => _showImagePreview(img),
+                                      child: ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.file(img, height: 120, width: 120, fit: BoxFit.cover)),
+                                    ),
+                                    Positioned(
+                                      top: 4, right: 4,
+                                      child: InkWell(
+                                        onTap: () { setState(() { _images.remove(img); }); },
+                                        child: Container(padding: const EdgeInsets.all(4), decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle), child: const Icon(Icons.close, color: Colors.white, size: 16)),
+                                      ),
+                                    )
+                                  ]
+                                )).toList(),
+                              ],
                             )
                           else
                             Container(
@@ -1142,29 +1291,40 @@ class _HistoryPageState extends State<HistoryPage> {
   @override
   void initState() {
     super.initState();
-    _refreshStores();
+    // 1. LANGSUNG tampilkan data dari database lokal HP (tidak pernah kosong)
+    _loadLocalStoresFirst();
+    // 2. Sinkronkan dengan server di background
+    _syncWithServer();
   }
 
-  Future<void> _refreshStores() async {
+  Future<void> _loadLocalStoresFirst() async {
+    final data = await DatabaseHelper.instance.getAllStores();
+    if (!mounted) return;
+    setState(() {
+      _stores = data;
+      _selectedIds.removeWhere((id) => !data.any((store) => store['id'] == id));
+    });
+  }
+
+  Future<void> _syncWithServer() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final userId = prefs.getString('userId');
       if (userId != null) {
-        final response = await http.get(Uri.parse('$API_URL?user_id=$userId'));
+        final response = await http.get(Uri.parse('$API_URL?user_id=$userId')).timeout(const Duration(seconds: 15));
         if (response.statusCode == 200) {
           final resData = jsonDecode(response.body);
           if (resData['status'] == 'success') {
             final List<dynamic> serverData = resData['data'];
-            await DatabaseHelper.instance.clearAllStores();
+            // JANGAN gunakan clearAllStores! Gunakan upsert agar data lokal yang baru dibuat tidak terhapus
             for (var item in serverData) {
               if (item['imagePaths'] is List) {
                 item['imagePaths'] = jsonEncode(item['imagePaths']);
               }
-              // Hanya ambil kolom yang didukung oleh SQLite lokal
               List<String> validColumns = [
                 'id', 'storeName', 'ownerName', 'picName', 'phone', 'address',
                 'volx', 'takis', 'tribe', 'pod_volx', 'pod_takis', 'pod_tribe',
-                'ct', 'pod', 'inside', 'imagePath', 'imagePaths'
+                'ct', 'pod', 'inside', 'imagePath', 'imagePaths', 'createdAt'
               ];
               
               Map<String, dynamic> localData = {};
@@ -1178,7 +1338,7 @@ class _HistoryPageState extends State<HistoryPage> {
                 }
               });
               
-              await DatabaseHelper.instance.insertStore(localData);
+              await DatabaseHelper.instance.upsertStore(localData);
             }
           }
         }
@@ -1187,11 +1347,7 @@ class _HistoryPageState extends State<HistoryPage> {
       debugPrint('Sync error: $e');
     }
 
-    final data = await DatabaseHelper.instance.getAllStores();
-    setState(() {
-      _stores = data;
-      _selectedIds.removeWhere((id) => !data.any((store) => store['id'] == id));
-    });
+    await _loadLocalStoresFirst();
   }
 
   Future<void> _deleteStore(int id) async {
@@ -1199,12 +1355,12 @@ class _HistoryPageState extends State<HistoryPage> {
       await http.post(
         Uri.parse(API_URL),
         body: {'action': 'delete', 'id': id.toString()},
-      );
+      ).timeout(const Duration(seconds: 10));
     } catch (e) {
       debugPrint('Error deleting on server: $e');
     }
     await DatabaseHelper.instance.deleteStore(id);
-    _refreshStores();
+    await _loadLocalStoresFirst();
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Data berhasil dihapus')));
   }
 
@@ -1287,7 +1443,7 @@ class _HistoryPageState extends State<HistoryPage> {
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: _refreshStores,
+        onRefresh: _syncWithServer,
         child: _stores.isEmpty
             ? ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -1381,7 +1537,7 @@ class _HistoryPageState extends State<HistoryPage> {
                                   icon: const Icon(Icons.edit, color: Colors.blue), label: const Text('Edit', style: TextStyle(color: Colors.blue)),
                                   onPressed: () async {
                                     final res = await Navigator.push(context, MaterialPageRoute(builder: (_) => DataFormPage(storeData: store)));
-                                    if (res == true) _refreshStores();
+                                    if (res == true) _loadLocalStoresFirst();
                                   },
                                 ),
                                 const SizedBox(width: 8),
